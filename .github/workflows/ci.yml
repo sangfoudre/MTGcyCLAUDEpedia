@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Version de SQLite
+        # Le tokenizer FTS5 'trigram' avec remove_diacritics exige 3.45+
+        run: python3 -c "import sqlite3; print(sqlite3.sqlite_version)"
+
+      - name: Installation
+        run: python3 -m pip install -e ".[dev]"
+
+      - name: Tests
+        run: python3 -m pytest tests/ -q
+
+      - name: Lint
+        run: python3 -m ruff check src/ tests/
+        continue-on-error: true
+
+      - name: Le telechargeur demarre sans dependance
+        run: python3 src/mtgc-images.py --version

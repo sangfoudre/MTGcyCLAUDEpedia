@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mtgcyclopedia"
+version = "1.1.0"
+description = "Scryfall en local : images par extension, base SQLite, recherche, catalogues PDF"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "sangfoudre" }]
+keywords = ["magic-the-gathering", "mtg", "scryfall", "sqlite", "catalog"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+web = ["fastapi", "uvicorn", "jinja2"]
+
+[project.urls]
+Homepage = "https://github.com/sangfoudre/MTGcyclopedia"
+Changelog = "https://github.com/sangfoudre/MTGcyclopedia/blob/main/CHANGELOG.md"
+
+[project.scripts]
+mtgc = "mtgc.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]

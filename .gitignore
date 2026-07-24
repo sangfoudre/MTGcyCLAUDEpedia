@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+
+# Données du projet : jamais versionnées (plusieurs dizaines de Go)
+*.sqlite3
+*.jsonl.gz
+*.jsonl
+sets/
+icons/
+metadata/
+verify_failed.txt
+run.log
+
+# Échantillons de test régénérables depuis l'API
+sample.json
+sets.json
+isd.json
