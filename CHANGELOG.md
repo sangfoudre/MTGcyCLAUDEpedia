@@ -8,11 +8,49 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 ## [Non publié]
 
 ### À faire
+- **Web, thèmes alternatifs** : proposer les styles « sombre premium » (façon
+  Scryfall) et « clair éditorial » en plus du thème doré actuel, via une
+  option `--theme`. Les trois maquettes ont été validées ; seul le doré est
+  implémenté.
+- **Web, recherche dynamique côté client** : filtre plein texte sur l'ensemble
+  des extensions depuis l'accueil (actuellement le filtre est par page de set).
+  Envisager un index JSON chargé à la demande plutôt qu'une app serveur, pour
+  rester 100 % statique.
+- **Web, app locale optionnelle** : petit serveur (FastAPI + htmx) pour une
+  recherche live sur les 120 000 cartes, en complément du site statique.
 - Brancher le générateur LaTeX sur SQLite (il attend encore le JSON aplati de 2020)
 - Ingérer les bulk `art_tags` / `oracle_tags` pour `atag:` et `otag:`
 - Corriger `c:m` sur Garruk Relentless (piste : `color_indicator` non propagé aux faces)
 - Rejouer les 26 requêtes de parité API non exécutées
-- Interface web (FastAPI + htmx)
+
+---
+
+## [1.2.0] — 2026-07-24
+
+### Ajouté
+- **Générateur de site statique** `mtgc-web.py` : page d'accueil listant les
+  extensions présentes dans le data-dir (nom, code, date, nombre de cartes,
+  icône), puis une page par extension avec la grande icône en tête, les mêmes
+  métadonnées, et la grille de toutes les cartes.
+- Thème « sombre à accents dorés / parchemin », cohérent avec l'emblème de
+  l'horloge. Icônes keyrune réelles quand elles sont présentes (`--icons`),
+  repli sur les initiales du code sinon.
+- Filtre et tri **côté client**, sans serveur : recherche par nom, type ou
+  illustrateur, filtre par rareté, tri par numéro de collection, nom ou coût
+  converti. Site 100 % statique, une carte = une balise `<img>` locale.
+- `--open` pour ouvrir la page d'accueil dans le navigateur ; `make web`.
+- Les métadonnées (noms, dates, raretés, types) sont tirées du **bulk local** :
+  aucun accès réseau à la génération.
+- Les images sont liées par lien symbolique (pas de copie de plusieurs Go) ;
+  copie en dernier recours si les liens sont impossibles.
+
+### Corrigé
+- **Perte silencieuse de cartes à collector number exotique.** Les fichiers
+  translittérés par le téléchargeur (`232†` -> `232-dagger`) n'étaient pas
+  reconnus : le site affichait 1 052 cartes là où le disque en comptait 1 057.
+  La translittération est désormais partagée entre les deux scripts, et un
+  filet anti-perte ajoute toute image sur disque qu'aucune carte du bulk n'a
+  réclamée.
 
 ---
 
@@ -112,6 +150,7 @@ le même degré d'avancement :
 | Composant | État |
 |---|---|
 | `src/mtgc-images.py` | **stable**, validé de bout en bout |
+| `src/mtgc-web.py` | **utilisable** : site statique, thème doré, validé sur données réelles |
 | `src/mtgc/query/` | **expérimental** : 21 requêtes conformes à l'API, 1 divergence connue, 26 non testées |
 | `src/mtgc/ingest.py`, `db.py` | expérimental, ingestion validée sur 9 492 cartes réelles |
 | `src/mtgc/latex.py` | **non fonctionnel** : attend encore le format JSON de 2020 |

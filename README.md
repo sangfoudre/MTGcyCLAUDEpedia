@@ -97,6 +97,30 @@ que retéléchargés.
 
 ---
 
+## Site web (`mtgc-web.py`)
+
+Génère un site statique à partir du data-dir : une page d'accueil avec
+toutes les extensions présentes (nom, code, date, nombre de cartes,
+icône), puis une page par extension avec la grande icône en tête et la
+grille de toutes ses cartes.
+
+```bash
+python3 src/mtgc-web.py --data-dir ~/mtg --open
+```
+
+Thème « sombre à accents dorés », icônes keyrune réelles si `--icons` a
+été passé au téléchargement. Filtre et tri (nom, type, illustrateur,
+rareté, coût) se font côté client, sans serveur : le site est 100 %
+statique et fonctionne par simple ouverture de `index.html`. Les
+métadonnées viennent du bulk local, donc zéro accès réseau à la
+génération.
+
+Deux autres thèmes (« sombre premium » façon Scryfall, « clair
+éditorial ») et une recherche transversale à toutes les extensions sont
+prévus — voir le `CHANGELOG.md`.
+
+---
+
 ## Modes de téléchargement (`--unique`)
 
 Chaque parution d'une carte est un objet distinct : cadre, symbole

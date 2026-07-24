@@ -10,6 +10,7 @@ help:
 	@echo "make sizes     tableau des volumes pour toutes les qualites"
 	@echo "make images    telecharge tout (DATA=~/mtg QUALITY=large)"
 	@echo "make verify    controle les fichiers deja presents"
+	@echo "make web       genere le site statique (accueil + pages de set)"
 	@echo "make clean     supprime les caches Python"
 
 install:
@@ -29,6 +30,9 @@ images:
 
 verify:
 	python3 src/mtgc-images.py --data-dir $(DATA) --verify
+
+web:
+	python3 src/mtgc-web.py --data-dir $(DATA)
 
 clean:
 	find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
