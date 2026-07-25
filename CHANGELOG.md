@@ -40,11 +40,14 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
   - **Pages de carte** : une page par `oracle_id`, listant toutes les
     impressions de la carte dans tous les sets présents (avec icône
     keyrune de chaque set), le texte oracle, et le **dernier ruling** daté.
-  - **Fontes Andrew Gioia** via CDN jsdelivr : keyrune pour les icônes de
-    set (une classe `.ss-<code>` par extension), mana-font pour les
-    symboles de mana dans les coûts. Plus léger que d'embarquer un millier
-    de SVG, et couvre tous les sets d'un coup — `--icons` n'est plus requis
-    pour l'affichage web.
+  - **Fontes Andrew Gioia embarquées en local** (keyrune pour les icônes
+    de set, mana-font pour les symboles de mana) : téléchargées une fois,
+    mises en cache dans `metadata/fonts/`, copiées dans `site/assets/` avec
+    un CSS réécrit pour ne pointer que sur le `.woff2` local. Le site
+    fonctionne ainsi **100 % hors-ligne**, fidèle au principe du projet.
+    Le bloc mplantin (police de texte, absente en woff2) est retiré du CSS
+    mana. Option `--offline` pour n'utiliser que le cache. `--icons` n'est
+    plus requis pour l'affichage web.
   - **Viewer plein écran** au clic : zoom (+/−), rotation (r), navigation
     précédent/suivant (←/→), réinitialisation, fermeture (Échap). Sur une
     page de carte, il parcourt toutes les impressions ; sur une page de

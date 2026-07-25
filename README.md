@@ -116,10 +116,12 @@ python3 src/mtgc-images.py --data-dir ~/mtg --rulings   # récupère les rulings
 python3 src/mtgc-web.py    --data-dir ~/mtg --open
 ```
 
-Les icônes de set et les symboles de mana viennent des fontes d'Andrew
-Gioia (keyrune, mana-font) servies par CDN jsdelivr — un affichage web
-nécessite donc une connexion, mais les images et les données restent
-locales. Options : `--no-card-pages` (plus rapide), `--no-rulings`.
+Les icônes de set (keyrune) et les symboles de mana (mana-font) d'Andrew
+Gioia sont **embarquées en local** dans `site/assets/` : le site
+fonctionne intégralement hors-ligne, sans aucun accès réseau à
+l'affichage. Les fontes sont téléchargées une seule fois puis mises en
+cache dans `metadata/fonts/`. Options : `--offline` (cache seul, aucun
+téléchargement), `--no-card-pages` (plus rapide), `--no-rulings`.
 
 Deux thèmes alternatifs (« sombre premium », « clair éditorial »), une
 recherche transversale et une favicon par set sont prévus — voir le

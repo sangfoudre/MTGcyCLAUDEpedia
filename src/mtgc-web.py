@@ -39,14 +39,27 @@ import re
 import shutil
 import sys
 import unicodedata
+import urllib.error
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
 
 VERSION = "0.2.0"
 
-# --------------------------------------------------------------- CDN fontes
-KEYRUNE_CSS = "https://cdn.jsdelivr.net/npm/keyrune@latest/css/keyrune.min.css"
-MANA_CSS = "https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.min.css"
+# --------------------------------------------------------------- fontes
+# Fontes d'Andrew Gioia embarquées LOCALEMENT dans le site (assets/), pour un
+# fonctionnement 100 % hors-ligne. Téléchargées une fois puis mises en cache
+# dans le data-dir ; le CSS est réécrit pour pointer sur le .woff2 local.
+FONT_SOURCES = {
+    "keyrune.woff2":
+        "https://cdn.jsdelivr.net/npm/keyrune@latest/fonts/keyrune.woff2",
+    "keyrune.css":
+        "https://cdn.jsdelivr.net/npm/keyrune@latest/css/keyrune.min.css",
+    "mana.woff2":
+        "https://cdn.jsdelivr.net/npm/mana-font@latest/fonts/mana.woff2",
+    "mana.css":
+        "https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.min.css",
+}
 
 # ------------------------------------------------------------------- thème
 THEME = {
@@ -254,6 +267,78 @@ def build_model(data_dir: Path, want_rulings: bool = True):
 
 # ------------------------------------------------------------- rendu : CSS
 
+def prepare_fonts(out: Path, cache_dir: Path, offline: bool) -> bool:
+    """Embarque keyrune + mana dans <out>/assets, en local.
+
+    Télécharge les .woff2 et les CSS (une seule fois, mis en cache dans le
+    data-dir), réécrit les `url(...)` des CSS pour ne garder que le .woff2
+    local, et retire le bloc mplantin (police de texte optionnelle absente
+    en woff2). Retourne True si les fontes sont disponibles.
+
+    En cas d'absence de réseau et de cache, on ne bloque pas la génération :
+    le site se rabat sur les CDN (voir head()), avec un avertissement.
+    """
+    assets = out / "assets"
+    assets.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def get(name: str) -> bytes | None:
+        cached = cache_dir / name
+        if cached.exists() and cached.stat().st_size > 0:
+            return cached.read_bytes()
+        if offline:
+            return None
+        try:
+            req = urllib.request.Request(
+                FONT_SOURCES[name],
+                headers={"User-Agent": "MTGcyCLAUDEpedia"})
+            data = urllib.request.urlopen(req, timeout=30).read()
+            cached.write_bytes(data)
+            return data
+        except (urllib.error.URLError, TimeoutError, OSError):
+            return None
+
+    ok = True
+    for woff in ("keyrune.woff2", "mana.woff2"):
+        data = get(woff)
+        if data:
+            (assets / woff).write_bytes(data)
+        else:
+            ok = False
+
+    for css_name, woff, family in (("keyrune.css", "keyrune.woff2", "keyrune"),
+                                   ("mana.css", "mana.woff2", "mana")):
+        raw = get(css_name)
+        if raw is None:
+            ok = False
+            continue
+        text = raw.decode("utf-8", "replace")
+        # ne conserver que le @font-face de la fonte d'icônes (écarte mplantin,
+        # absent en woff2)
+        text = _strip_extra_fontface(text, family)
+        # Réécrire le bloc @font-face pour ne pointer QUE sur le woff2 local.
+        # Un @font-face keyrune contient deux déclarations src: (eot seul, puis
+        # multi-format) ; les laisser produirait des requêtes mortes vers des
+        # .eot/.ttf/.svg absents. On remplace tout le bloc d'un coup.
+        text = re.sub(
+            r"@font-face\s*\{[^}]*\}",
+            "@font-face{font-family:'" + family + "';"
+            "src:url('" + woff + "') format('woff2');"
+            "font-weight:normal;font-style:normal;font-display:block}",
+            text, count=1)
+        (assets / css_name).write_text(text, encoding="utf-8")
+    return ok
+
+
+def _strip_extra_fontface(css_text: str, keep_family: str) -> str:
+    """Ne garde que le @font-face dont la font-family contient keep_family."""
+    blocks = list(re.finditer(r"@font-face\s*\{[^}]*\}", css_text))
+    for b in blocks:
+        if keep_family.lower() not in b.group(0).lower():
+            css_text = css_text.replace(b.group(0), "", 1)
+    return css_text
+
+
 def css() -> str:
     t = THEME
     return f""":root{{--bg:{t['bg']};--panel:{t['panel']};--panel2:{t['panel_alt']};
@@ -408,8 +493,8 @@ def head(title: str, favicon: str) -> str:
             f"<meta name=viewport content='width=device-width,initial-scale=1'>"
             f"<title>{esc(title)}</title>"
             f"<link rel='icon' type='image/svg+xml' href=\"{favicon}\">"
-            f"<link rel=stylesheet href='{KEYRUNE_CSS}'>"
-            f"<link rel=stylesheet href='{MANA_CSS}'>"
+            f"<link rel=stylesheet href='assets/keyrune.css'>"
+            f"<link rel=stylesheet href='assets/mana.css'>"
             f"<link rel=stylesheet href='style.css'></head><body>")
 
 
@@ -664,6 +749,9 @@ def main(argv=None) -> int:
                     help="ne pas générer une page par carte (plus rapide)")
     ap.add_argument("--no-rulings", action="store_true",
                     help="ignorer le bulk rulings même s'il est présent")
+    ap.add_argument("--offline", action="store_true",
+                    help="ne pas tenter de télécharger les fontes ; "
+                         "utiliser le cache local s'il existe")
     ap.add_argument("--open", action="store_true",
                     help="ouvrir la page d'accueil dans le navigateur")
     ap.add_argument("--version", action="version", version=f"mtgc-web {VERSION}")
@@ -682,6 +770,14 @@ def main(argv=None) -> int:
           f"{len(by_oracle)} carte(s) unique(s)"
           + (f", {len(rulings)} oracle_id avec rulings" if rulings else ""),
           file=sys.stderr)
+
+    fonts_ok = prepare_fonts(out, data_dir / "metadata" / "fonts", a.offline)
+    if fonts_ok:
+        print("  fontes keyrune + mana embarquées (hors-ligne)", file=sys.stderr)
+    else:
+        print("  fontes indisponibles (ni cache ni réseau) : les icônes "
+              "n'apparaîtront pas tant que assets/ n'est pas peuplé",
+              file=sys.stderr)
 
     fav = favicon_svg()
     (out / "style.css").write_text(css(), encoding="utf-8")
