@@ -45,7 +45,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-VERSION = "1.1.0"
+VERSION = "1.3.0"
 API = "https://api.scryfall.com"
 UA = f"MTGcyCLAUDEpedia/{VERSION} (+https://github.com/sangfoudre/MTGcyCLAUDEpedia)"
 HEADERS = {"User-Agent": UA, "Accept": "application/json;q=0.9,*/*;q=0.8"}
