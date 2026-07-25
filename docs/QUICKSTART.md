@@ -1,4 +1,4 @@
-# MTGcyclopedia — Guide de démarrage rapide
+# MTGcyCLAUDEpedia — Guide de démarrage rapide
 
 Téléchargement de toutes les cartes Magic depuis Scryfall, un répertoire
 par extension, chaque parution avec ses vrais frames, symboles et dates
@@ -182,7 +182,7 @@ exclusive à une langue (promos japonaises, exclusivités régionales).
 
 Le téléchargeur est terminé. Le reste du projet — base SQLite, moteur de
 recherche en syntaxe Scryfall, pages web, catalogues PDF — est en cours
-dans le paquet `mtgcyclopedia/`. Voir son `README.md`, en particulier le
+dans le paquet `mtgcycLAUDEpedia/`. Voir son `README.md`, en particulier le
 tableau de sémantique de recherche établi par test contre l'API : c'est
 la partie la plus coûteuse à retrouver.
 

@@ -1,10 +1,10 @@
-# MTGcyclopedia
+# MTGcyCLAUDEpedia
 
 **Scryfall en local** : toutes les cartes Magic, rangées par extension,
 avec leurs vrais cadres, symboles et dates de copyright — plus une base
 SQLite, un moteur de recherche en syntaxe Scryfall et des catalogues PDF.
 
-[![CI](https://github.com/sangfoudre/MTGcyclopedia/actions/workflows/ci.yml/badge.svg)](https://github.com/sangfoudre/MTGcyclopedia/actions/workflows/ci.yml)
+[![CI](https://github.com/sangfoudre/MTGcyCLAUDEpedia/actions/workflows/ci.yml/badge.svg)](https://github.com/sangfoudre/MTGcyCLAUDEpedia/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Licence](https://img.shields.io/badge/licence-MIT-green)
 
@@ -15,8 +15,8 @@ SQLite, un moteur de recherche en syntaxe Scryfall et des catalogues PDF.
 Aucune dépendance : Python 3.10+ et la bibliothèque standard suffisent.
 
 ```bash
-git clone https://github.com/sangfoudre/MTGcyclopedia.git
-cd MTGcyclopedia
+git clone https://github.com/sangfoudre/MTGcyCLAUDEpedia.git
+cd MTGcyCLAUDEpedia
 
 # 1. essai sur une extension (2 minutes)
 python3 src/mtgc-images.py --data-dir ~/mtg --set arn --quality small
@@ -99,25 +99,31 @@ que retéléchargés.
 
 ## Site web (`mtgc-web.py`)
 
-Génère un site statique à partir du data-dir : une page d'accueil avec
-toutes les extensions présentes (nom, code, date, nombre de cartes,
-icône), puis une page par extension avec la grande icône en tête et la
-grille de toutes ses cartes.
+Génère un site statique à partir du data-dir :
+
+- **accueil** : toutes les extensions présentes (nom, code, date, nombre de
+  cartes, icône keyrune) ;
+- **page d'extension** : grande icône en tête, métadonnées, grille de cartes
+  avec filtre/tri côté client ;
+- **page de carte** : une par `oracle_id`, regroupant **toutes les
+  impressions** de la carte dans tous les sets présents (icône keyrune de
+  chaque set), avec le texte oracle et le **dernier ruling** daté ;
+- **viewer plein écran** au clic : zoom, rotation, précédent/suivant (←/→),
+  Échap pour fermer.
 
 ```bash
-python3 src/mtgc-web.py --data-dir ~/mtg --open
+python3 src/mtgc-images.py --data-dir ~/mtg --rulings   # récupère les rulings
+python3 src/mtgc-web.py    --data-dir ~/mtg --open
 ```
 
-Thème « sombre à accents dorés », icônes keyrune réelles si `--icons` a
-été passé au téléchargement. Filtre et tri (nom, type, illustrateur,
-rareté, coût) se font côté client, sans serveur : le site est 100 %
-statique et fonctionne par simple ouverture de `index.html`. Les
-métadonnées viennent du bulk local, donc zéro accès réseau à la
-génération.
+Les icônes de set et les symboles de mana viennent des fontes d'Andrew
+Gioia (keyrune, mana-font) servies par CDN jsdelivr — un affichage web
+nécessite donc une connexion, mais les images et les données restent
+locales. Options : `--no-card-pages` (plus rapide), `--no-rulings`.
 
-Deux autres thèmes (« sombre premium » façon Scryfall, « clair
-éditorial ») et une recherche transversale à toutes les extensions sont
-prévus — voir le `CHANGELOG.md`.
+Deux thèmes alternatifs (« sombre premium », « clair éditorial »), une
+recherche transversale et une favicon par set sont prévus — voir le
+`CHANGELOG.md`.
 
 ---
 

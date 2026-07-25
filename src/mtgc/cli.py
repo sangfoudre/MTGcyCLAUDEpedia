@@ -155,7 +155,7 @@ def cmd_config(args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="mtgc", description="MTGcyclopedia — un Scryfall local")
+        prog="mtgc", description="MTGcyCLAUDEpedia — un Scryfall local")
     p.add_argument("-c", "--config", help="fichier TOML de configuration")
     p.add_argument("-d", "--data-dir", help="racine des données")
     p.add_argument("-v", "--verbose", action="store_true")

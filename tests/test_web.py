@@ -21,19 +21,29 @@ def test_sanitize_matches_downloader():
     assert web.sanitize_cn("15★") == "15-star"
 
 
-def test_stem_variants_covers_transliteration():
-    v = web.stem_variants("232†")
-    assert "232-dagger.jpg" in v and "232†.jpg" in v
+def test_image_names_new_scheme():
+    v = web.image_names("5ed", "232", "normal")["front"]
+    assert "5ed-232.jpg" in v and "5ed-232.png" in v
+
+
+def test_image_names_transliterates_dagger():
+    v = web.image_names("5ed", "232†", "normal")["front"]
+    assert "5ed-232-dagger.jpg" in v
+
+
+def test_image_names_dfc_faces():
+    n = web.image_names("isd", "51", "transform")
+    assert "isd-51-a.jpg" in n["front"] and "isd-51-b.jpg" in n["back"]
 
 
 def test_build_model_loses_no_image(tmp_path):
-    # data-dir minimal : deux images, aucune métadonnée bulk
+    # data-dir minimal : deux images au schéma <code>-<num>, aucun bulk
     sets = tmp_path / "sets" / "tst"
     sets.mkdir(parents=True)
-    for name in ("1.jpg", "232-dagger.jpg"):
+    for name in ("tst-1.jpg", "tst-232-dagger.jpg"):
         (sets / name).write_bytes(b"\xff\xd8\xff\xe0stub")
     (tmp_path / "metadata").mkdir()
-    got_sets, cards = web.build_model(tmp_path)
+    got_sets, cards, by_oracle, rulings = web.build_model(tmp_path)
     total = sum(s["count"] for s in got_sets)
     assert total == 2, "toute image sur disque doit apparaître"
 

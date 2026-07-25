@@ -25,6 +25,47 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 
 ---
 
+## [1.3.0] — 2026-07-25
+
+### Ajouté
+- **Renommage du projet** en `MTGcyCLAUDEpedia`.
+- **Schéma de nommage des images** `<code-set>-<numéro>[-a|-b].<ext>`
+  (ex. `lea-186.jpg`), globalement unique — indispensable aux pages de
+  carte qui agrègent des impressions de sets différents. `mtgc-migrate.py`
+  bascule une collection existante sans retélécharger ; sinon un simple
+  retéléchargement suffit.
+- **Téléchargeur** : option `--rulings` pour récupérer le bulk des rulings
+  (~26 Mo), nécessaire aux pages de carte.
+- **Site web (mtgc-web 0.2.0)** :
+  - **Pages de carte** : une page par `oracle_id`, listant toutes les
+    impressions de la carte dans tous les sets présents (avec icône
+    keyrune de chaque set), le texte oracle, et le **dernier ruling** daté.
+  - **Fontes Andrew Gioia** via CDN jsdelivr : keyrune pour les icônes de
+    set (une classe `.ss-<code>` par extension), mana-font pour les
+    symboles de mana dans les coûts. Plus léger que d'embarquer un millier
+    de SVG, et couvre tous les sets d'un coup — `--icons` n'est plus requis
+    pour l'affichage web.
+  - **Viewer plein écran** au clic : zoom (+/−), rotation (r), navigation
+    précédent/suivant (←/→), réinitialisation, fermeture (Échap). Sur une
+    page de carte, il parcourt toutes les impressions ; sur une page de
+    set, toutes les cartes.
+  - **Favicon** SVG inline (lotus doré). Voir limite ci-dessous.
+  - Options `--no-card-pages` (génération plus rapide) et `--no-rulings`.
+
+### Limite connue
+- **Favicon par set non implémentée.** L'idée (le glyphe keyrune du set en
+  favicon) se heurte à une contrainte technique : une webfont ne se charge
+  pas dans le contexte isolé d'un `data:` SVG de favicon. La favicon reste
+  donc constante (identité du site). Piste future : pré-rendre un PNG par
+  set à partir du glyphe, au prix d'un fichier par extension.
+
+### Corrigé
+- Le générateur web suit le nouveau schéma `<code>-<num>` ; l'ancien
+  `stem_variants` (numéro nu) est remplacé par `image_names`. Test
+  anti-divergence des deux `sanitize` conservé.
+
+---
+
 ## [1.2.0] — 2026-07-24
 
 ### Ajouté
@@ -150,7 +191,7 @@ le même degré d'avancement :
 | Composant | État |
 |---|---|
 | `src/mtgc-images.py` | **stable**, validé de bout en bout |
-| `src/mtgc-web.py` | **utilisable** : site statique, thème doré, validé sur données réelles |
+| `src/mtgc-web.py` | **riche** : accueil, pages de set, pages de carte multi-prints, rulings, viewer, fontes keyrune/mana |
 | `src/mtgc/query/` | **expérimental** : 21 requêtes conformes à l'API, 1 divergence connue, 26 non testées |
 | `src/mtgc/ingest.py`, `db.py` | expérimental, ingestion validée sur 9 492 cartes réelles |
 | `src/mtgc/latex.py` | **non fonctionnel** : attend encore le format JSON de 2020 |

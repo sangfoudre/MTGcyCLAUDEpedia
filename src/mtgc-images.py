@@ -47,7 +47,7 @@ from pathlib import Path
 
 VERSION = "1.1.0"
 API = "https://api.scryfall.com"
-UA = f"MTGcyclopedia/{VERSION} (+https://github.com/sangfoudre/MTGcyclopedia)"
+UA = f"MTGcyCLAUDEpedia/{VERSION} (+https://github.com/sangfoudre/MTGcyCLAUDEpedia)"
 HEADERS = {"User-Agent": UA, "Accept": "application/json;q=0.9,*/*;q=0.8"}
 
 #: délai mini entre deux appels à api.scryfall.com (10 req/s documenté)
@@ -286,16 +286,22 @@ class Job:
 def filename_for(card: dict, face_idx: int, multi: bool, fmt: str) -> str:
     """Nom de fichier d'une image. Source unique de vérité.
 
+    Schéma : ``<code-set>-<numéro officiel>[-a|-b].<ext>``, ex.
+    ``lea-186.jpg``. Le préfixe du set rend le nom globalement unique même
+    sorti de son dossier — indispensable aux pages de carte qui agrègent
+    plusieurs impressions issues de sets différents dans une même vue.
+
     Utilisé aussi bien pour poser le fichier réel que pour viser un lien :
     les deux DOIVENT produire exactement la même chaîne, faute de quoi les
     liens pointeraient dans le vide.
     """
+    code = sanitize((card.get("set") or "xxx").lower())
     cn = sanitize(card.get("collector_number") or card["id"][:8])
     ext = ".png" if fmt == "png" else ".jpg"
     suffix = ""
     if multi:
         suffix = "-" + ("abcdefgh"[face_idx] if face_idx < 8 else f"f{face_idx}")
-    return f"{cn}{suffix}{ext}"
+    return f"{code}-{cn}{suffix}{ext}"
 
 
 def pick_quality(uris: dict, wanted: list[str]) -> tuple[str, str] | None:
@@ -915,6 +921,9 @@ def main(argv=None) -> int:
                    help="téléchargements simultanés (défaut : 8)")
     p.add_argument("--icons", action="store_true",
                    help="récupérer aussi les icônes SVG des sets")
+    p.add_argument("--rulings", action="store_true",
+                   help="récupérer aussi le bulk des rulings (~26 Mo), "
+                        "nécessaire aux pages de carte du site web")
     p.add_argument("--force-bulk", action="store_true",
                    help="retélécharger le bulk même s'il est à jour")
     p.add_argument("--dry-run", action="store_true",
@@ -946,6 +955,13 @@ def main(argv=None) -> int:
     except Exception as e:                                # noqa: BLE001
         log.err(f"récupération du bulk impossible : {e}")
         return 1
+
+    if a.rulings:
+        try:
+            fetch_bulk("rulings", cfg.meta_dir, force=a.force_bulk)
+            log.info("bulk des rulings récupéré")
+        except Exception as e:                            # noqa: BLE001
+            log.warn(f"bulk des rulings indisponible : {e}")
 
     log.info("lecture du bulk et planification…")
     t0 = time.time()

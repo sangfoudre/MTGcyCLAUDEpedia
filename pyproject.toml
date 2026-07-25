@@ -3,8 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mtgcyclopedia"
-version = "1.2.0"
+name = "mtgcyclaudepedia"
+version = "1.3.0"
 description = "Scryfall en local : images par extension, base SQLite, recherche, catalogues PDF"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,8 +28,8 @@ dev = ["pytest>=8", "ruff>=0.5"]
 web = ["fastapi", "uvicorn", "jinja2"]
 
 [project.urls]
-Homepage = "https://github.com/sangfoudre/MTGcyclopedia"
-Changelog = "https://github.com/sangfoudre/MTGcyclopedia/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/sangfoudre/MTGcyCLAUDEpedia"
+Changelog = "https://github.com/sangfoudre/MTGcyCLAUDEpedia/blob/main/CHANGELOG.md"
 
 [project.scripts]
 mtgc = "mtgc.cli:main"

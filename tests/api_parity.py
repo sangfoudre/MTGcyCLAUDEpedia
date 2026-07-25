@@ -19,7 +19,7 @@ from mtgc import db, ingest  # noqa: E402
 from mtgc.config import Config  # noqa: E402
 from mtgc.query import search, QueryError  # noqa: E402
 
-UA = {"User-Agent": "MTGcyclopedia/2.0", "Accept": "application/json"}
+UA = {"User-Agent": "MTGcyCLAUDEpedia/2.0", "Accept": "application/json"}
 SET = "isd"
 CARDS = Path("/home/claude/isd.json")
 SETS = Path("/home/claude/sets.json")

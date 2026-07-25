@@ -12,7 +12,7 @@ DEFAULT_CONFIG_PATHS = [
 ]
 
 #: Scryfall exige un User-Agent explicite et un Accept.
-USER_AGENT = "MTGcyclopedia/2.0 (+https://github.com/sangfoudre/MTGcyclopedia)"
+USER_AGENT = "MTGcyCLAUDEpedia/2.0 (+https://github.com/sangfoudre/MTGcyCLAUDEpedia)"
 
 
 @dataclass

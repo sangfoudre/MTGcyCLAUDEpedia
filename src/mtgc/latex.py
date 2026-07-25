@@ -98,7 +98,7 @@ def _preamble(cfg: Config, title: str, subtitle: str) -> str:
 \\renewcommand{{\\headrulewidth}}{{0.2pt}}
 
 \\title{{{esc(title)}}}
-\\author{{Généré par MTGcyclopedia — données et images \\href{{https://scryfall.com}}{{Scryfall}}}}
+\\author{{Généré par MTGcyCLAUDEpedia — données et images \\href{{https://scryfall.com}}{{Scryfall}}}}
 \\date{{{datetime.now().strftime('%d/%m/%Y')}}}
 
 \\begin{{document}}
