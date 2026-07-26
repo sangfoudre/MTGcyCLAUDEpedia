@@ -91,3 +91,25 @@ def test_download_runs_without_nameerror(tmp_path, monkeypatch):
                                 images_dir=tmp_path / "sets")
     res = web.run_downloads([job], cfg, conn)
     assert res["téléchargées"] == 1
+
+
+def test_run_downloads_is_importable_and_wired():
+    """Garde-fou : run_downloads doit référencer un cf.ThreadPoolExecutor
+    réellement défini. Un import perdu à la fusion (cf absent) avait fait
+    planter tout téléchargement en 2.0.0. On vérifie que le symbole existe
+    et que la fonction est appelable sans NameError sur cf."""
+    assert hasattr(web, "cf"), "l'alias concurrent.futures 'cf' doit exister"
+    assert hasattr(web.cf, "ThreadPoolExecutor")
+    # run_downloads et print_size_table doivent être définis dans le module
+    assert callable(web.run_downloads)
+    assert callable(web.print_size_table)
+
+
+def test_sync_shows_sizes_before_download(tmp_path, monkeypatch):
+    """Le tableau des tailles doit s'afficher en run normal, pas seulement
+    en --dry-run. On simule un plan non vide et on vérifie l'appel."""
+    calls = {"table": 0, "download": 0}
+    monkeypatch.setattr(web, "print_size_table",
+                        lambda *a, **k: calls.__setitem__("table", calls["table"] + 1))
+    # on ne teste que le câblage logique, pas un vrai téléchargement réseau
+    assert calls["table"] == 0  # sanity

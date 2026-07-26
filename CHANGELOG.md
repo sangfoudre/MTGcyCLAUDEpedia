@@ -39,6 +39,28 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 
 ---
 
+## [2.0.1] — 2026-07-26
+
+Correctif : le téléchargement était cassé dans la 2.0.0.
+
+### Corrigé
+- **Crash au téléchargement (`NameError: name 'cf' is not defined`).** À la
+  fusion des deux scripts, l'import `concurrent.futures` avait été écrit
+  `from concurrent.futures import ThreadPoolExecutor` alors que le corps du
+  téléchargeur utilise `cf.ThreadPoolExecutor`. Toute la génération web
+  passait (elle n'utilise pas ce module), mais `mtgc sync` plantait dès le
+  premier téléchargement d'image. Import rétabli en `import
+  concurrent.futures as cf`.
+- **Tableau des tailles absent en run normal.** Le récapitulatif des volumes
+  par qualité ne s'affichait que sous `--dry-run`. Il s'affiche désormais
+  avant chaque téléchargement (coupable : `--no-sizes` pour le désactiver).
+
+### Ajouté
+- **Tests de régression exerçant réellement le téléchargement** : vérifient
+  que l'alias `cf` existe et que `run_downloads` est câblé. La 2.0.0 avait
+  été validée uniquement sur la partie web ; ces bugs seraient apparus plus
+  tôt avec un test qui touche au download. Leçon retenue.
+
 ## [2.0.0] — 2026-07-26
 
 Refonte majeure : **un seul outil** au lieu de deux scripts.
