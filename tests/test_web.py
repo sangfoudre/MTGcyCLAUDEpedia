@@ -148,3 +148,29 @@ def test_set_nav_is_chronological(tmp_path):
     html = web.render_set(mid, cbs["bbb"], "fav", False,
                           sets[i - 1], sets[i + 1])
     assert "set-aaa.html" in html and "set-ccc.html" in html
+
+
+def test_set_page_is_virtualized(tmp_path):
+    """La page de set ne doit plus contenir une balise <img> par carte :
+    les données vivent en JSON, le DOM est peuplé au défilement. Un retour
+    au rendu « 460 <img> en dur » serait une régression de fluidité."""
+    meta = tmp_path / "metadata"; meta.mkdir()
+    import gzip as _gz, json as _j
+    cards = [{"set": "tst", "set_name": "T", "released_at": "2000-01-01",
+              "collector_number": str(i), "name": f"Card {i}",
+              "oracle_id": f"o-{i}", "layout": "normal", "rarity": "common",
+              "type_line": "Creature", "oracle_text": "x"} for i in range(1, 51)]
+    with _gz.open(meta / "default_cards.jsonl.gz", "wt") as f:
+        for c in cards:
+            f.write(_j.dumps(c) + "\n")
+    d = tmp_path / "sets" / "tst"; d.mkdir(parents=True)
+    for i in range(1, 51):
+        (d / f"tst-{i}.jpg").write_bytes(b"\xff\xd8\xff\xe0stub")
+
+    sets, cbs, _, _ = web.build_model(tmp_path, want_rulings=False)
+    html = web.render_set(sets[0], cbs["tst"], "fav", False)
+    # au plus 2 <img> statiques (le viewer) pour 50 cartes
+    assert html.count("<img") <= 2, "les vignettes doivent être virtualisées"
+    # les données doivent être présentes en JSON
+    assert '"cn"' in html and '"src"' in html
+    assert html.count('"name"') >= 50

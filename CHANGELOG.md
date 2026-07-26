@@ -12,10 +12,6 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
   Scryfall) et « clair éditorial » en plus du thème doré actuel, via une
   option `--theme`. Les trois maquettes ont été validées ; seul le doré est
   implémenté.
-- **Web, fluidité des grosses pages** : pagination ou virtualisation des
-  vignettes pour les extensions de plusieurs centaines de cartes, si la
-  lenteur se confirme sur le corpus complet. Piste : ne rendre dans le DOM
-  que les cartes visibles (IntersectionObserver).
 - **Web, recherche transversale** : rechercher une *carte* (pas seulement une
   extension) depuis l'accueil, sur l'ensemble du corpus. La recherche par
   extension existe déjà ; reste la recherche de cartes, qui suppose un index
@@ -28,6 +24,27 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 - Rejouer les 26 requêtes de parité API non exécutées
 
 ---
+
+## [2.2.0] — 2026-07-26
+
+### Ajouté
+- **Grille de cartes virtualisée.** Les pages de set ne rendent plus une
+  balise `<img>` par carte : les données vivent en JSON, et seules les
+  cartes réellement visibles à l'écran existent dans le DOM (fenêtrage au
+  défilement, avec quelques rangées de marge). Le DOM d'une page de 460
+  cartes ne dépasse jamais ~54 nœuds. Poids HTML d'une page de 460 cartes :
+  ~120 Ko contre ~225 Ko auparavant. Le défilement reste fluide quelle que
+  soit la taille de l'extension. Filtre, tri et viewer opèrent sur les
+  données, pas sur le DOM.
+
+### Note
+Choix d'architecture retenu après analyse : la lenteur venait du nombre de
+nœuds DOM (une `<img>` par carte), pas d'un manque de dynamisme. Un
+micro-serveur aurait alourdi l'usage (processus à lancer, fin du
+hors-ligne) sans être plus rapide sur une page donnée. La virtualisation
+règle la fluidité en gardant le site 100 % statique. Un serveur reste
+pertinent pour un autre besoin — la recherche transversale sur tout le
+corpus — qui reste en TODO.
 
 ## [2.1.0] — 2026-07-26
 

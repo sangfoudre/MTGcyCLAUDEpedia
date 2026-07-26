@@ -40,7 +40,7 @@ from collections import defaultdict
 import concurrent.futures as cf
 from pathlib import Path
 
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 UA = "MTGcyCLAUDEpedia/2.0"
 API = "https://api.scryfall.com"
 API_DELAY = 0.1
@@ -1475,38 +1475,30 @@ def render_set(s, cards, favicon: str, card_pages: bool,
         "<option value=name>Nom (A→Z)</option>"
         "<option value=cmc>Coût converti</option></select>"
         "<span class=count id=count></span></div>")
-    o.append("<div class=cards id=cards>")
-    viewer_list = []
-    for i, c in enumerate(cards):
-        col = RARITY_COLOR.get(c["rarity"], THEME["ink_faint"])
+    # Virtualisation : les cartes vivent en JSON, pas en 460 balises <img>.
+    # Le DOM ne contient que les cartes visibles (voir SET_JS). Sur une page
+    # de plusieurs centaines de cartes, c'est ce qui garde le défilement fluide.
+    data = []
+    for c in cards:
         img = f"sets/{c['set_code']}/{c['img']}"
-        cmc = ("" if c["cmc"] is None
-               else str(int(c["cmc"]) if c["cmc"] == int(c["cmc"]) else c["cmc"]))
+        cmc = (0 if c["cmc"] is None
+               else int(c["cmc"]) if c["cmc"] == int(c["cmc"]) else c["cmc"])
         has_page = card_pages and not c["oid"].startswith("noid-")
-        viewer_list.append({"src": img, "name": c["name"], "cn": c["cn"]})
-        if has_page:
-            link = (f"<a href='card-{slug(c['oid'])}.html#{esc(c['set_code'])}'>"
-                    f"<img loading=lazy src='{img}' alt=\"{esc(c['name'])}\"></a>")
-        else:
-            link = (f"<img loading=lazy src='{img}' alt=\"{esc(c['name'])}\" "
-                    f"onclick='vwOpen({i})'>")
-        o.append(
-            f"<div class=card data-n=\"{esc(c['name'].lower())}\" "
-            f"data-t=\"{esc(c['type'].lower())}\" "
-            f"data-a=\"{esc(c['artist'].lower())}\" data-r=\"{c['rarity']}\" "
-            f"data-cmc=\"{cmc or 0}\" data-cn=\"{esc(c['cn'])}\" "
-            f"data-name=\"{esc(c['name'])}\">{link}"
-            f"<div class=cap><span class=nm>"
-            f"<span class=dot style='background:{col}'></span>"
-            f"{esc(c['name'])}</span>"
-            f"<span class=cn>{esc(c['cn'])}</span></div></div>")
-    o.append("</div>")
+        data.append({
+            "src": img, "name": c["name"], "cn": c["cn"],
+            "n": c["name"].lower(), "t": c["type"].lower(),
+            "a": c["artist"].lower(), "r": c["rarity"],
+            "cmc": cmc, "dot": RARITY_COLOR.get(c["rarity"], THEME["ink_faint"]),
+            "href": (f"card-{slug(c['oid'])}.html#{c['set_code']}"
+                     if has_page else ""),
+        })
+    o.append("<div class=cards id=cards></div>")
     o.append("<div class=empty id=empty style=display:none>"
              "Aucune carte ne correspond au filtre.</div>")
     o.append(f"<div class=foot>{s['count']} cartes · MTGcyCLAUDEpedia</div>")
     o.append("</div>")
     o.append(viewer_html())
-    o.append(f"<script>const VIEW={json.dumps(viewer_list, ensure_ascii=False)};"
+    o.append(f"<script>const VIEW={json.dumps(data, ensure_ascii=False)};"
              f"</script>")
     o.append(SET_JS)
     o.append(VIEWER_JS)
@@ -1604,51 +1596,121 @@ def viewer_html() -> str:
 
 
 SET_JS = """<script>
-const cards=[...document.querySelectorAll('.card')];
+// ---- Grille virtualisée ----
+// Seules les cartes visibles à l'écran existent dans le DOM. On calcule quelles
+// lignes sont dans la fenêtre (plus une marge), et on ne rend que celles-là.
 const cont=document.getElementById('cards');
 const cntEl=document.getElementById('count');
 const emptyEl=document.getElementById('empty');
-function flt(){
-  const q=document.getElementById('q').value.toLowerCase().trim();
-  const r=document.getElementById('rar').value;
-  const sort=document.getElementById('sort').value;
-  let vis=0;
-  for(const c of cards){
-    const okq=!q||c.dataset.n.includes(q)||c.dataset.t.includes(q)||c.dataset.a.includes(q);
-    const okr=!r||c.dataset.r===r;
-    const show=okq&&okr;c.style.display=show?'':'none';if(show)vis++;
-  }
-  const shown=cards.filter(c=>c.style.display!=='none');
-  shown.sort((a,b)=>{
-    if(sort==='name')return a.dataset.name.localeCompare(b.dataset.name);
-    if(sort==='cmc')return (+a.dataset.cmc)-(+b.dataset.cmc)||natcn(a,b);
-    return natcn(a,b);
-  });
-  for(const c of shown)cont.appendChild(c);
-  cntEl.textContent=vis+' / '+cards.length;
-  emptyEl.style.display=vis?'none':'';
+const qEl=document.getElementById('q');
+const rarEl=document.getElementById('rar');
+const sortEl=document.getElementById('sort');
+
+let filtered=VIEW.slice();     // données après filtre/tri
+let colW=196, rowH=306, cols=1, pad=16;   // géométrie, recalculée au layout
+const OVER=3;                  // lignes de marge au-dessus/dessous
+
+function measure(){
+  const w=cont.clientWidth||cont.offsetWidth||900;
+  cols=Math.max(1,Math.floor((w+pad)/(colW+pad)));
 }
 function natcn(a,b){
-  const pa=a.dataset.cn.match(/^(\\d+)(.*)$/),pb=b.dataset.cn.match(/^(\\d+)(.*)$/);
+  const pa=(a.cn||'').match(/^(\\d+)(.*)$/),pb=(b.cn||'').match(/^(\\d+)(.*)$/);
   if(pa&&pb){const d=(+pa[1])-(+pb[1]);return d||pa[2].localeCompare(pb[2]);}
-  return a.dataset.cn.localeCompare(b.dataset.cn);
+  return (a.cn||'').localeCompare(b.cn||'');
 }
-flt();
+function applyFilterSort(){
+  const q=qEl.value.toLowerCase().trim();
+  const r=rarEl.value, sort=sortEl.value;
+  filtered=VIEW.filter(c=>{
+    const okq=!q||c.n.includes(q)||c.t.includes(q)||c.a.includes(q);
+    return okq&&(!r||c.r===r);
+  });
+  filtered.sort((a,b)=>{
+    if(sort==='name')return a.name.localeCompare(b.name);
+    if(sort==='cmc')return (a.cmc-b.cmc)||natcn(a,b);
+    return natcn(a,b);
+  });
+  cntEl.textContent=filtered.length+' / '+VIEW.length;
+  emptyEl.style.display=filtered.length?'none':'';
+}
+function cardHTML(c,idx){
+  const cap='<div class=cap><span class=nm>'
+    +'<span class=dot style="background:'+c.dot+'"></span>'
+    +escapeHtml(c.name)+'</span><span class=cn>'+escapeHtml(c.cn)+'</span></div>';
+  const img='<img loading=lazy src="'+c.src+'" alt="'+escapeHtml(c.name)
+    +'" onclick="vwOpen('+idx+')">';
+  const inner=c.href?('<a href="'+c.href+'">'+img+'</a>'):img;
+  return '<div class=card>'+inner+cap+'</div>';
+}
+function escapeHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
+
+let ticking=false;
+function render(){
+  ticking=false;
+  measure();
+  const rows=Math.ceil(filtered.length/cols);
+  const totalH=rows*rowH;
+  const scrollY=window.scrollY;
+  const top=cont.getBoundingClientRect().top+scrollY;
+  const viewTop=Math.max(0,scrollY-top);
+  const first=Math.max(0,Math.floor(viewTop/rowH)-OVER);
+  const visRows=Math.ceil(window.innerHeight/rowH)+OVER*2;
+  const startIdx=first*cols;
+  const endIdx=Math.min(filtered.length,(first+visRows)*cols);
+  // conteneur à hauteur totale, cartes positionnées en absolu par rangée
+  let html='<div style="position:relative;height:'+totalH+'px">';
+  for(let i=startIdx;i<endIdx;i++){
+    const row=Math.floor(i/cols), col=i%cols;
+    html+='<div style="position:absolute;top:'+(row*rowH)+'px;left:'
+      +(col*(colW+pad))+'px;width:'+colW+'px">'+cardHTML(filtered[i],i)+'</div>';
+  }
+  html+='</div>';
+  cont.innerHTML=html;
+}
+function onScroll(){if(!ticking){ticking=true;requestAnimationFrame(render);}}
+// VIEW pour le viewer doit suivre le filtre : on remappe vwOpen sur filtered
+window.vwOpen=function(i){window.__view=filtered;vwStart(i);return false;};
+
+function flt(){applyFilterSort();render();}
+window.addEventListener('scroll',onScroll,{passive:true});
+window.addEventListener('resize',()=>{measure();render();});
+applyFilterSort();
+// géométrie réelle mesurée après premier rendu d'une carte témoin
+cont.innerHTML=cardHTML(filtered[0]||{name:'',cn:'',src:'',dot:'#000',href:''},0);
+requestAnimationFrame(()=>{
+  const el=cont.querySelector('.card');
+  if(el){const r=el.getBoundingClientRect();
+    if(r.width>40){colW=r.width;}          // garde-fous : dimensions plausibles
+    if(r.height>60){rowH=r.height+18;}
+  }
+  render();
+});
 </script>"""
 
 
 VIEWER_JS = """<script>
-let vi=0,vz=1,vr=0;
+// Viewer plein écran. Travaille sur une liste courante (vwList) : c'est VIEW
+// par défaut (pages carte), ou la liste filtrée (pages set, via vwOpen).
+let vi=0,vz=1,vr=0,vwList=(typeof VIEW!=='undefined'?VIEW:[]);
 const vw=document.getElementById('vw'),vimg=document.getElementById('vwimg'),
       vcap=document.getElementById('vwcap');
 function vwApply(){vimg.style.transform=`scale(${vz}) rotate(${vr}deg)`;}
-function vwShow(){const v=VIEW[vi];vimg.src=v.src;vimg.alt=v.name;
-  vcap.textContent=v.name+'  ·  '+v.cn+'   ('+(vi+1)+'/'+VIEW.length+')';
+function vwShow(){const v=vwList[vi];if(!v)return;vimg.src=v.src;vimg.alt=v.name;
+  vcap.textContent=v.name+'  ·  '+(v.cn||'')+'   ('+(vi+1)+'/'+vwList.length+')';
   vz=1;vr=0;vwApply();}
-function vwOpen(i){vi=i;vw.classList.add('on');vwShow();return false;}
+function vwStart(i){vw.classList.add('on');vi=i;vwShow();}
+// vwOpen par défaut (pages carte) ; les pages de set le redéfinissent pour
+// pointer sur la liste filtrée.
+if(typeof window.vwOpen==='undefined'){
+  window.vwOpen=function(i){vwList=(typeof VIEW!=='undefined'?VIEW:vwList);
+    vwStart(i);return false;};
+}
+window.vwStart=vwStart;
+Object.defineProperty(window,'__view',{set(v){vwList=v;},get(){return vwList;}});
 function vwClose(){vw.classList.remove('on');}
-function vwNext(){vi=(vi+1)%VIEW.length;vwShow();}
-function vwPrev(){vi=(vi-1+VIEW.length)%VIEW.length;vwShow();}
+function vwNext(){vi=(vi+1)%vwList.length;vwShow();}
+function vwPrev(){vi=(vi-1+vwList.length)%vwList.length;vwShow();}
 function vwZoom(d){vz=Math.max(.3,Math.min(6,vz+d*.25));vwApply();}
 function vwRot(){vr=(vr+90)%360;vwApply();}
 function vwReset(){vz=1;vr=0;vwApply();}
