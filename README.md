@@ -18,14 +18,11 @@ Aucune dépendance : Python 3.10+ et la bibliothèque standard suffisent.
 git clone https://github.com/sangfoudre/MTGcyCLAUDEpedia.git
 cd MTGcyCLAUDEpedia
 
-# 1. essai sur une extension (2 minutes)
-python3 src/mtgc-images.py --data-dir ~/mtg --set arn --quality small
+# tout d'un coup : images + rulings + fontes + site
+python3 src/mtgc.py sync --data-dir ~/mtg --quality large
 
-# 2. chiffrer avant de se lancer
-python3 src/mtgc-images.py --data-dir ~/mtg --quality large --dry-run
-
-# 3. le grand run (~20 Gio, quelques heures)
-python3 src/mtgc-images.py --data-dir ~/mtg --quality large --icons
+# ouvrir le site
+xdg-open ~/mtg/site/index.html
 ```
 
 Guide complet : [`docs/QUICKSTART.md`](docs/QUICKSTART.md).

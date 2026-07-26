@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("mtgc_web", ROOT / "src" / "mtgc-web.py")
+spec = importlib.util.spec_from_file_location("mtgc", ROOT / "src" / "mtgc.py")
 web = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(web)
 
@@ -55,9 +55,7 @@ def test_slug():
 def test_sanitize_never_diverges_from_downloader():
     """Les deux sanitize doivent coïncider : sinon des images sont perdues."""
     import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "mtgc_images", ROOT / "src" / "mtgc-images.py")
-    img = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(img)
+    # dans l'outil unifié, sanitize (téléchargeur) et sanitize_cn (web) doivent
+    # toujours coïncider : sinon des images seraient perdues.
     for cn in ["232†", "15★", "100a", "1", "★123†", "42", "GRN-7"]:
-        assert web.sanitize_cn(cn) == img.sanitize(cn), cn
+        assert web.sanitize_cn(cn) == web.sanitize(cn), cn

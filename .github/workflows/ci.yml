@@ -35,4 +35,4 @@ jobs:
         continue-on-error: true
 
       - name: Le telechargeur demarre sans dependance
-        run: python3 src/mtgc-images.py --version
+        run: python3 src/mtgc.py --version

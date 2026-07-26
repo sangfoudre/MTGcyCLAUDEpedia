@@ -12,16 +12,69 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
   Scryfall) et « clair éditorial » en plus du thème doré actuel, via une
   option `--theme`. Les trois maquettes ont été validées ; seul le doré est
   implémenté.
-- **Web, recherche dynamique côté client** : filtre plein texte sur l'ensemble
-  des extensions depuis l'accueil (actuellement le filtre est par page de set).
-  Envisager un index JSON chargé à la demande plutôt qu'une app serveur, pour
-  rester 100 % statique.
+- **Web, recherche transversale** : rechercher une *carte* (pas seulement une
+  extension) depuis l'accueil, sur l'ensemble du corpus. La recherche par
+  extension existe déjà ; reste la recherche de cartes, qui suppose un index
+  JSON chargé à la demande pour rester statique.
 - **Web, app locale optionnelle** : petit serveur (FastAPI + htmx) pour une
   recherche live sur les 120 000 cartes, en complément du site statique.
 - Brancher le générateur LaTeX sur SQLite (il attend encore le JSON aplati de 2020)
 - Ingérer les bulk `art_tags` / `oracle_tags` pour `atag:` et `otag:`
 - Corriger `c:m` sur Garruk Relentless (piste : `color_indicator` non propagé aux faces)
 - Rejouer les 26 requêtes de parité API non exécutées
+
+---
+
+## [2.0.0] — 2026-07-26
+
+Refonte majeure : **un seul outil** au lieu de deux scripts.
+
+### Changement incompatible
+- `mtgc-images.py` et `mtgc-web.py` fusionnent en **`src/mtgc.py`**.
+  Nouvelle interface à sous-commandes :
+
+  ```
+  mtgc sync --data-dir ~/mtg              # tout : images + rulings + fontes + site
+  mtgc sync --data-dir ~/mtg --no-web     # images seulement
+  mtgc sync --data-dir ~/mtg --no-images  # (re)générer le site seul
+  mtgc web  --data-dir ~/mtg              # site seul
+  mtgc verify --data-dir ~/mtg
+  ```
+
+  Chaque étape se coupe : `--no-images`, `--no-rulings`, `--no-fonts`,
+  `--no-web`, `--no-card-pages`. Par défaut tout est activé.
+
+### Ajouté
+- **Repli d'icônes de set.** La fonte keyrune ne couvre que ~40 % des
+  extensions (425 sur 1047) ; les 66 % restants — surtout les sorties
+  récentes et les sets de tokens — s'affichaient sans icône. On télécharge
+  désormais le SVG officiel depuis Scryfall pour tout set absent de
+  keyrune, mis en cache dans `metadata/seticons/`. Couverture portée à
+  ~100 %.
+- **Accueil : tri et recherche.** Tri par date, nom ou nombre de cartes,
+  chaque sens disponible (6 options). Recherche dynamique par nom ou code
+  d'extension, filtrage instantané côté client.
+- **Skin allégé.** Fond plus clair et plus contrasté, or plus lumineux,
+  encre plus lisible. **Icônes agrandies** : 56 px sur l'accueil (contre
+  40), 104 px en tête de page de set (contre 72).
+
+### Corrigé
+- **Bug : clic sur une variante.** Depuis une page de set, cliquer sur une
+  carte présente dans plusieurs éditions ouvrait la page sur l'impression
+  la plus ancienne, pas celle du set courant. Le lien porte maintenant un
+  fragment `#<set>` et un script place en grand l'impression de l'édition
+  d'où l'on vient.
+- **Bugs d'assemblage** détectés au test : trois constantes réseau
+  (`API_DELAY`, `HEADERS`, `IMAGE_STATUS_RANK`) avaient été perdues à la
+  fusion, et un `try/except` trop large les masquait. La récupération de la
+  liste des sets remonte désormais ses erreurs.
+
+### Maturité
+| Composant | État |
+|---|---|
+| `src/mtgc.py` | **stable** : images, rulings, fontes, site, un seul fichier |
+| `src/mtgc/` (moteur de recherche) | expérimental |
+| catalogues PDF | non branché sur SQLite |
 
 ---
 
