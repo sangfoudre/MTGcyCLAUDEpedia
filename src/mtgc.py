@@ -6,7 +6,8 @@ mtgc — MTGcyCLAUDEpedia : outil unique.
 Une seule commande fait tout : télécharge les images (un dossier par set,
 schéma <code>-<numéro>), les rulings, les fontes, puis génère le site.
 
-    mtgc sync --data-dir ~/mtg                 # tout, qualité large
+    mtgc sync                                  # tout, dans ~/mtg (defaut)
+    mtgc sync --data-dir ~/mtg                 # emplacement explicite
     mtgc sync --data-dir ~/mtg --quality png
     mtgc sync --data-dir ~/mtg --no-web        # images seulement
     mtgc sync --data-dir ~/mtg --no-images     # (re)générer le site seul
@@ -40,7 +41,7 @@ from collections import defaultdict
 import concurrent.futures as cf
 from pathlib import Path
 
-VERSION = "2.2.0"
+VERSION = "2.2.1"
 UA = "MTGcyCLAUDEpedia/2.0"
 API = "https://api.scryfall.com"
 API_DELAY = 0.1
@@ -1914,7 +1915,9 @@ def cmd_web(a) -> int:
 
 
 def _add_common_image_args(p) -> None:
-    p.add_argument("--data-dir", default="~/mtg")
+    p.add_argument("--data-dir", default="~/mtg",
+                   help="racine des donnees et du site "
+                        "(defaut : ~/mtg, developpe en /home/<user>/mtg)")
     p.add_argument("--quality", default="large", choices=QUALITIES)
     p.add_argument("--quality-for", action="append", metavar="FMT:SETS")
     p.add_argument("--strict-quality", action="store_true")
@@ -1956,7 +1959,9 @@ def main(argv=None) -> int:
 
     # web : site seul
     pw = sub.add_parser("web", help="générer le site seul")
-    pw.add_argument("--data-dir", default="~/mtg")
+    pw.add_argument("--data-dir", default="~/mtg",
+                    help="racine des donnees et du site "
+                         "(defaut : ~/mtg)")
     pw.add_argument("--set", action="append", default=[])
     pw.add_argument("--no-card-pages", action="store_true")
     pw.add_argument("--no-rulings", action="store_true")

@@ -25,6 +25,26 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 
 ---
 
+## [2.2.1] — 2026-07-26
+
+### Documentation
+- **Répertoire par défaut documenté.** Sans `--data-dir`, tout est rangé
+  dans `~/mtg` (développé en `/home/<utilisateur>/mtg`), indépendamment du
+  dossier courant. Précisé dans l'aide en ligne (`--help`), la docstring
+  d'en-tête et le README, avec l'arborescence produite et la remarque sur
+  la sensibilité à la casse (`~/mtg` ≠ `~/MTG`).
+- **Références aux anciens scripts corrigées** dans le README et le
+  QUICKSTART : `mtgc-images.py` et `mtgc-web.py` (fusionnés en 2.0.0)
+  deviennent `mtgc.py sync` / `mtgc.py web`.
+
+### Non modifié (vérifié)
+Les ~30 000 pages `card-*.html` restent à plat dans `site/`. Mesuré :
+l'accès par nom exact est en ~0,026 ms quel que soit le nombre de fichiers
+(les systèmes de fichiers Linux modernes hachent les noms), donc la
+navigation ne ralentit pas. Le rangement en sous-dossiers n'apporterait
+que de la maniabilité pour les copies, non de la vitesse ; choix de rester
+à plat assumé.
+
 ## [2.2.0] — 2026-07-26
 
 ### Ajouté

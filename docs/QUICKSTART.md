@@ -13,7 +13,7 @@ script n'utilise que la bibliothèque standard.
 
 ```bash
 python3 --version        # doit afficher 3.10+
-chmod +x mtgc-images.py
+chmod +x mtgc.py
 ```
 
 Espace disque à prévoir — chiffres **mesurés**, pas estimés :
@@ -33,7 +33,7 @@ Espace disque à prévoir — chiffres **mesurés**, pas estimés :
 Toujours commencer petit, sur une extension unique :
 
 ```bash
-./mtgc-images.py --data-dir ~/mtg --set arn --quality small
+./mtgc.py sync --data-dir ~/mtg --set arn --quality small
 ```
 
 Attendu : 92 fichiers dans `~/mtg/sets/arn/`. Si ça marche, la chaîne
@@ -46,7 +46,7 @@ complète fonctionne.
 `--dry-run` planifie tout sans écrire un octet :
 
 ```bash
-./mtgc-images.py --data-dir ~/mtg --quality large --dry-run
+./mtgc.py sync --data-dir ~/mtg --quality large --dry-run
 ```
 
 Le premier appel télécharge le bulk Scryfall (~69 Mio compressés) et met
@@ -57,7 +57,7 @@ environ 20 s à l'analyser. Il est mis en cache 24 h.
 ## 4. Le grand run
 
 ```bash
-./mtgc-images.py --data-dir ~/mtg --quality large --icons
+./mtgc.py sync --data-dir ~/mtg --quality large --icons
 ```
 
 Compter **~2 h 15** à la vitesse observée (~15 images/s). `--icons`
@@ -71,7 +71,7 @@ même commande reprend exactement là où ça s'était arrêté.
 Pour un run long, détacher la session :
 
 ```bash
-nohup ./mtgc-images.py --data-dir ~/mtg --quality large --icons \
+nohup ./mtgc.py sync --data-dir ~/mtg --quality large --icons \
       > ~/mtg/run.log 2>&1 &
 tail -f ~/mtg/run.log
 ```
@@ -127,16 +127,16 @@ frame de la mauvaise édition — à éviter pour un catalogue.
 
 ```bash
 # Un bloc entier
-./mtgc-images.py --data-dir ~/mtg --set isd --set dka --set avr --quality png
+./mtgc.py sync --data-dir ~/mtg --set isd --set dka --set avr --quality png
 
 # Illustrations seules, sans cadre ni texte (index par illustrateur)
-./mtgc-images.py --data-dir ~/mtg --quality art_crop
+./mtgc.py sync --data-dir ~/mtg --quality art_crop
 
 # Anglais strict, en excluant les exclusivités linguistiques
-./mtgc-images.py --data-dir ~/mtg --lang en --quality large
+./mtgc.py sync --data-dir ~/mtg --lang en --quality large
 
 # Connexion fragile : réduire la concurrence
-./mtgc-images.py --data-dir ~/mtg --quality large --jobs 3
+./mtgc.py sync --data-dir ~/mtg --quality large --jobs 3
 ```
 
 ---

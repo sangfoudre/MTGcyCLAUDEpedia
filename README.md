@@ -25,6 +25,16 @@ python3 src/mtgc.py sync --data-dir ~/mtg --quality large
 xdg-open ~/mtg/site/index.html
 ```
 
+**Répertoire par défaut.** Sans `--data-dir`, tout est rangé dans **`~/mtg`**
+(soit `/home/<utilisateur>/mtg`) : le `~` est développé vers ton dossier
+personnel, quel que soit le répertoire depuis lequel tu lances la commande.
+Sur un système sensible à la casse, `~/mtg` et `~/MTG` sont deux dossiers
+distincts. Pour un autre emplacement : `--data-dir /chemin/de/ton/choix`.
+
+Arborescence produite sous le data-dir : `sets/<CODE>/` (images),
+`metadata/` (bulks, fontes, icônes de repli), `images.sqlite3` (manifeste)
+et `site/` (le site généré, toutes les pages à plat).
+
 Guide complet : [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
 
 ---
@@ -33,7 +43,7 @@ Guide complet : [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
 
 | Composant | État |
 |---|---|
-| `src/mtgc-images.py` — téléchargeur | **stable**, validé de bout en bout |
+| `src/mtgc.py` — téléchargeur | **stable**, validé de bout en bout |
 | `src/mtgc/ingest.py`, `db.py` — base SQLite | expérimental, validé sur 9 492 cartes réelles |
 | `src/mtgc/query/` — moteur de recherche | expérimental : 21 requêtes conformes à l'API, 1 divergence connue |
 | `src/mtgc/latex.py` — catalogues PDF | **non fonctionnel**, attend le portage sur SQLite |
@@ -65,7 +75,7 @@ sondées en direct.
 Tout en `large`, sauf trois extensions en `png` :
 
 ```bash
-python3 src/mtgc-images.py --data-dir ~/mtg \
+python3 src/mtgc.py --data-dir ~/mtg \
         --quality large --quality-for png:mh3,blb,dsk
 ```
 
@@ -94,7 +104,7 @@ que retéléchargés.
 
 ---
 
-## Site web (`mtgc-web.py`)
+## Site web (`mtgc.py web`)
 
 Génère un site statique à partir du data-dir :
 
@@ -109,8 +119,8 @@ Génère un site statique à partir du data-dir :
   Échap pour fermer.
 
 ```bash
-python3 src/mtgc-images.py --data-dir ~/mtg --rulings   # récupère les rulings
-python3 src/mtgc-web.py    --data-dir ~/mtg --open
+python3 src/mtgc.py --data-dir ~/mtg --rulings   # récupère les rulings
+python3 src/mtgc.py --data-dir ~/mtg --open
 ```
 
 Les icônes de set (keyrune) et les symboles de mana (mana-font) d'Andrew
