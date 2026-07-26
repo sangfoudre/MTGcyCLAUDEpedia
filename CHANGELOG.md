@@ -25,6 +25,20 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 
 ---
 
+## [2.0.1] — 2026-07-26
+
+### Corrigé
+- **Crash au téléchargement** (`NameError: name 'cf' is not defined`). À la
+  fusion 2.0.0, l'import `concurrent.futures as cf` était devenu
+  `from concurrent.futures import ThreadPoolExecutor`, incompatible avec
+  l'appel `cf.ThreadPoolExecutor`. Le simple import du module ne le
+  révélait pas ; un test qui **exécute** `run_downloads` a été ajouté.
+- **Tableau des tailles absent hors `--dry-run`.** `sync` affiche désormais
+  le volume estimé de toutes les qualités **avant** chaque téléchargement,
+  la qualité choisie étant marquée. Option `--no-sizes` pour le couper.
+
+---
+
 ## [2.0.0] — 2026-07-26
 
 Refonte majeure : **un seul outil** au lieu de deux scripts.

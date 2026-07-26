@@ -59,3 +59,35 @@ def test_sanitize_never_diverges_from_downloader():
     # toujours coïncider : sinon des images seraient perdues.
     for cn in ["232†", "15★", "100a", "1", "★123†", "42", "GRN-7"]:
         assert web.sanitize_cn(cn) == web.sanitize(cn), cn
+
+
+def test_download_runs_without_nameerror(tmp_path, monkeypatch):
+    """run_downloads doit s'exécuter sans NameError (bug cf. de la fusion 2.0).
+
+    Un simple import ne détecte pas les alias manquants dans le corps d'une
+    fonction : il faut réellement l'exécuter. On simule un job avec un
+    téléchargeur bouchonné pour ne pas toucher le réseau.
+    """
+    import types
+    # data-dir minimal
+    (tmp_path / "sets").mkdir()
+    conn = web.open_manifest(tmp_path / "m.sqlite3")
+
+    # un job bidon qui écrit un octet, sans réseau
+    job = web.Job.__new__(web.Job)
+    for attr, val in [("url", "http://x/y.jpg"),
+                      ("path", tmp_path / "sets" / "tst" / "tst-1.jpg"),
+                      ("card_id", "id"), ("face", 0), ("fmt", "small"),
+                      ("illustration", "il"), ("updated", ""),
+                      ("set_code", "tst"), ("link_to", None)]:
+        setattr(job, attr, val)
+
+    monkeypatch.setattr(web, "download_file",
+                        lambda url, dest, timeout=120: (dest.parent.mkdir(
+                            parents=True, exist_ok=True),
+                            dest.write_bytes(b"\xff\xd8\xff\xe0x"), 5)[-1])
+
+    cfg = types.SimpleNamespace(jobs=2, dry_run=False, overwrite=False,
+                                images_dir=tmp_path / "sets")
+    res = web.run_downloads([job], cfg, conn)
+    assert res["téléchargées"] == 1

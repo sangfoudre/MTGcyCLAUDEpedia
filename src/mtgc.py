@@ -37,10 +37,10 @@ import unicodedata
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures as cf
 from pathlib import Path
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 UA = "MTGcyCLAUDEpedia/2.0"
 API = "https://api.scryfall.com"
 API_DELAY = 0.1
@@ -1776,8 +1776,11 @@ def cmd_sync(a) -> int:
         log.info("planification…")
         jobs, stats = plan(lambda: iter_cards(bulk), cfg)
         log.info(f"{stats['cartes']} cartes lues, {len(jobs)} images à traiter")
-        if a.dry_run:
+        # tableau des volumes (toutes qualités) avant de télécharger, sauf si
+        # on l'a explicitement coupé
+        if jobs and not a.no_sizes:
             print_size_table(jobs, cfg)
+        if a.dry_run:
             log.ok("--dry-run : rien téléchargé")
             return 0
         run_downloads(jobs, cfg, conn)
@@ -1846,6 +1849,8 @@ def main(argv=None) -> int:
                     help="ne pas générer le site")
     ps.add_argument("--no-card-pages", action="store_true",
                     help="pas de page par carte (plus rapide)")
+    ps.add_argument("--no-sizes", action="store_true",
+                    help="ne pas sonder les tailles avant téléchargement")
     ps.add_argument("--open", action="store_true")
     ps.set_defaults(func=cmd_sync)
 
