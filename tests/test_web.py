@@ -174,3 +174,35 @@ def test_set_page_is_virtualized(tmp_path):
     # les données doivent être présentes en JSON
     assert '"cn"' in html and '"src"' in html
     assert html.count('"name"') >= 50
+
+
+def test_clean_site_preserves_linked_images(tmp_path):
+    """clean_site_dir vide site/ mais NE suit PAS le lien vers les images.
+    Le lien site/sets pointe vers des dizaines de Go ; les perdre serait
+    catastrophique. rmtree supprime le lien, pas sa cible."""
+    import os
+    precious = tmp_path / "sets" / "lea"
+    precious.mkdir(parents=True)
+    (precious / "lea-1.jpg").write_bytes(b"\xff\xd8PRECIOUS")
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "index.html").write_text("x")
+    (site / "card-orphan.html").write_text("orphan")
+    os.symlink(tmp_path / "sets", site / "sets")
+
+    web.clean_site_dir(site)
+
+    assert not site.exists(), "site/ doit être supprimé"
+    assert (precious / "lea-1.jpg").read_bytes() == b"\xff\xd8PRECIOUS", \
+        "les images derrière le lien doivent survivre"
+
+
+def test_clean_site_refuses_wrong_dir(tmp_path):
+    """Garde-fou : refuse de supprimer un dossier qui n'est pas 'site'."""
+    d = tmp_path / "important_data"
+    d.mkdir()
+    (d / "keep.txt").write_text("ne pas supprimer")
+    import pytest
+    with pytest.raises(SystemExit):
+        web.clean_site_dir(d)
+    assert (d / "keep.txt").exists()

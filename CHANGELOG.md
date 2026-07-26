@@ -25,6 +25,28 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 
 ---
 
+## [2.3.0] — 2026-07-26
+
+### Ajouté
+- **Nettoyage de `site/` avant régénération, par défaut.** `mtgc web` et
+  `mtgc sync` vident le dossier `site/` avant de le reconstruire, pour
+  qu'aucune page orpheline ne s'accumule (carte renumérotée, extension
+  retirée). `--no-clean` conserve l'ancien comportement.
+
+  Le nettoyage se fait par `shutil.rmtree`, en appels système directs :
+  aucune limite `ARG_MAX` du shell, même à des dizaines de milliers de
+  fichiers — là où `rm -rf site/*` échoue avec « liste d'arguments trop
+  longue ». Pour vider le site à la main, préférer `rm -rf site` (sans le
+  `*`) ou `find site -mindepth 1 -delete`.
+
+### Sécurité
+- **Les images liées sont préservées.** `site/sets` est un lien symbolique
+  vers le dossier d'images (potentiellement des dizaines de Go) ; `rmtree`
+  supprime le lien, jamais sa cible — vérifié et couvert par un test.
+- **Garde-fou anti-erreur** : le nettoyage refuse tout dossier dont le nom
+  n'est pas exactement `site`, pour qu'un `--data-dir` malencontreux ne
+  puisse pas déclencher une suppression ailleurs.
+
 ## [2.2.1] — 2026-07-26
 
 ### Documentation

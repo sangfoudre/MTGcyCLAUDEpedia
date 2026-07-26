@@ -41,7 +41,7 @@ from collections import defaultdict
 import concurrent.futures as cf
 from pathlib import Path
 
-VERSION = "2.2.1"
+VERSION = "2.3.0"
 UA = "MTGcyCLAUDEpedia/2.0"
 API = "https://api.scryfall.com"
 API_DELAY = 0.1
@@ -1780,10 +1780,41 @@ def fetch_set_icons(sets, assets: Path, cache: Path, offline: bool,
 # ORCHESTRATION UNIFIÉE
 # ==================================================================
 
+def clean_site_dir(out: Path) -> None:
+    """Vide entièrement site/ avant régénération, sans jamais suivre les liens.
+
+    Le sous-dossier site/sets est un lien symbolique vers les images (des
+    dizaines de Go). shutil.rmtree supprime le lien, PAS sa cible — vérifié —
+    mais on ceinture quand même :
+      - refus si le chemin ne se termine pas par 'site' (garde-fou anti-erreur
+        de --data-dir) ;
+      - rmtree travaille en syscalls (os.unlink/os.rmdir), donc aucune limite
+        ARG_MAX du shell même à des dizaines de milliers de fichiers.
+    """
+    if out.name != "site":
+        raise SystemExit(f"refus de nettoyer un dossier nommé {out.name!r} "
+                         f"(attendu 'site') — vérifie --data-dir")
+    if not out.exists():
+        return
+    if out.is_symlink():
+        # site/ lui-même est un lien : on enlève le lien, pas la cible
+        out.unlink()
+        return
+    shutil.rmtree(out)          # ne suit pas les liens internes (ex. sets/)
+
+
 def _render_site(data_dir: Path, *, card_pages: bool, want_rulings: bool,
-                 offline: bool, sets_filter=None) -> None:
-    """Génère le site complet : fontes locales, icônes de repli, pages."""
+                 offline: bool, sets_filter=None, clean: bool = True) -> None:
+    """Génère le site complet : fontes locales, icônes de repli, pages.
+
+    Par défaut, vide site/ avant de régénérer (clean=True) : sans quoi les
+    pages de cartes disparues (renumérotation, set retiré) s'accumuleraient
+    en orphelins au fil des régénérations. --no-clean conserve l'existant.
+    """
     out = data_dir / "site"
+    if clean and out.exists():
+        clean_site_dir(out)
+        log.info("site/ nettoyé avant régénération")
     out.mkdir(parents=True, exist_ok=True)
 
     sets, cards_by_set, by_oracle, rulings = build_model(
@@ -1892,7 +1923,7 @@ def cmd_sync(a) -> int:
     if not a.no_web:
         _render_site(cfg.data_dir, card_pages=not a.no_card_pages,
                      want_rulings=not a.no_rulings, offline=a.no_fonts,
-                     sets_filter=cfg.sets)
+                     sets_filter=cfg.sets, clean=not a.no_clean)
     else:
         log.info("étape web ignorée (--no-web)")
 
@@ -1907,7 +1938,8 @@ def cmd_web(a) -> int:
     data_dir = Path(a.data_dir).expanduser().resolve()
     _render_site(data_dir, card_pages=not a.no_card_pages,
                  want_rulings=not a.no_rulings, offline=a.no_fonts,
-                 sets_filter={s.lower() for s in a.set} if a.set else None)
+                 sets_filter={s.lower() for s in a.set} if a.set else None,
+                 clean=not a.no_clean)
     if a.open:
         import webbrowser
         webbrowser.open((data_dir / "site" / "index.html").as_uri())
@@ -1952,6 +1984,10 @@ def main(argv=None) -> int:
                     help="ne pas générer le site")
     ps.add_argument("--no-card-pages", action="store_true",
                     help="pas de page par carte (plus rapide)")
+    ps.add_argument("--no-clean", action="store_true",
+                    help="ne pas vider site/ avant de régénérer "
+                         "(par défaut, site/ est nettoyé pour éviter les "
+                         "pages orphelines ; les images liées sont préservées)")
     ps.add_argument("--no-sizes", action="store_true",
                     help="ne pas sonder les tailles avant téléchargement")
     ps.add_argument("--open", action="store_true")
@@ -1964,6 +2000,8 @@ def main(argv=None) -> int:
                          "(defaut : ~/mtg)")
     pw.add_argument("--set", action="append", default=[])
     pw.add_argument("--no-card-pages", action="store_true")
+    pw.add_argument("--no-clean", action="store_true",
+                    help="ne pas vider site/ avant de régénérer")
     pw.add_argument("--no-rulings", action="store_true")
     pw.add_argument("--no-fonts", action="store_true",
                     help="cache de fontes seul, sans téléchargement")
