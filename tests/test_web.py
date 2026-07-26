@@ -113,3 +113,38 @@ def test_sync_shows_sizes_before_download(tmp_path, monkeypatch):
                         lambda *a, **k: calls.__setitem__("table", calls["table"] + 1))
     # on ne teste que le câblage logique, pas un vrai téléchargement réseau
     assert calls["table"] == 0  # sanity
+
+
+def test_set_nav_is_chronological(tmp_path):
+    """Les flèches précédent/suivant suivent l'ordre de sortie des sets."""
+    # trois sets datés, créés dans le désordre sur le disque
+    meta = tmp_path / "metadata"; meta.mkdir()
+    import gzip as _gz, json as _j
+    cards = [
+        {"set": "bbb", "set_name": "B", "released_at": "2000-01-01",
+         "collector_number": "1", "name": "cb", "oracle_id": "o-b",
+         "layout": "normal", "rarity": "common"},
+        {"set": "aaa", "set_name": "A", "released_at": "1990-01-01",
+         "collector_number": "1", "name": "ca", "oracle_id": "o-a",
+         "layout": "normal", "rarity": "common"},
+        {"set": "ccc", "set_name": "C", "released_at": "2010-01-01",
+         "collector_number": "1", "name": "cc", "oracle_id": "o-c",
+         "layout": "normal", "rarity": "common"},
+    ]
+    with _gz.open(meta / "default_cards.jsonl.gz", "wt") as f:
+        for c in cards:
+            f.write(_j.dumps(c) + "\n")
+    for code in ("aaa", "bbb", "ccc"):
+        d = tmp_path / "sets" / code; d.mkdir(parents=True)
+        (d / f"{code}-1.jpg").write_bytes(b"\xff\xd8\xff\xe0stub")
+
+    sets, cbs, _, _ = web.build_model(tmp_path, want_rulings=False)
+    codes = [s["code"] for s in sets]
+    assert codes == ["aaa", "bbb", "ccc"], "tri chronologique attendu"
+
+    # la page du milieu (bbb) doit pointer aaa <- -> ccc
+    mid = next(s for s in sets if s["code"] == "bbb")
+    i = codes.index("bbb")
+    html = web.render_set(mid, cbs["bbb"], "fav", False,
+                          sets[i - 1], sets[i + 1])
+    assert "set-aaa.html" in html and "set-ccc.html" in html

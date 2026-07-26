@@ -40,7 +40,7 @@ from collections import defaultdict
 import concurrent.futures as cf
 from pathlib import Path
 
-VERSION = "2.0.1"
+VERSION = "2.1.0"
 UA = "MTGcyCLAUDEpedia/2.0"
 API = "https://api.scryfall.com"
 API_DELAY = 0.1
@@ -1164,6 +1164,14 @@ color:var(--ink);letter-spacing:-.01em}}
 .sub{{margin-left:auto;text-align:right;font-size:12px;color:var(--golddim)}}
 .crumb{{font-size:13px;color:var(--golddim);margin-bottom:20px}}
 .crumb a:hover{{color:var(--gold)}}
+.setnavbar{{display:flex;align-items:center;justify-content:space-between;
+gap:12px;margin-bottom:22px;padding:10px 14px;background:var(--panel);
+border:1px solid var(--bd);border-radius:10px}}
+.setnav{{font-family:ui-monospace,monospace;font-size:13px;color:var(--gold);
+padding:4px 10px;border-radius:6px;white-space:nowrap}}
+.setnav:hover{{background:var(--panel2);color:var(--ink)}}
+.setnav.off{{color:var(--ink-faint);opacity:.35;pointer-events:none}}
+.setnavmid{{font-size:11px;color:var(--inkfaint);letter-spacing:.04em}}
 .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
 gap:16px}}
 .setcard{{background:var(--panel);border:1px solid var(--bd);border-radius:12px;
@@ -1340,9 +1348,23 @@ const items=[...document.querySelectorAll('.setcard')];
 const grid=document.getElementById('grid');
 const cnt=document.getElementById('count');
 const emptyEl=document.getElementById('empty');
+const qEl=document.getElementById('q');
+const sortEl=document.getElementById('sort');
+// Mémoire de session : le tri et la recherche survivent à un aller-retour
+// dans une extension. sessionStorage = le temps de l'onglet, pas au-delà.
+try{
+  const sv=sessionStorage.getItem('mtgc_sort');
+  if(sv)sortEl.value=sv;
+  const qv=sessionStorage.getItem('mtgc_q');
+  if(qv)qEl.value=qv;
+}catch(e){}
 function flt(){
-  const q=document.getElementById('q').value.toLowerCase().trim();
-  const sort=document.getElementById('sort').value;
+  const q=qEl.value.toLowerCase().trim();
+  const sort=sortEl.value;
+  try{
+    sessionStorage.setItem('mtgc_sort',sort);
+    sessionStorage.setItem('mtgc_q',qEl.value);
+  }catch(e){}
   let vis=0;
   for(const it of items){
     const show=!q||it.dataset.name.includes(q)||it.dataset.code.includes(q);
@@ -1410,13 +1432,26 @@ def render_index(sets, favicon: str) -> str:
     return "".join(o)
 
 
-def render_set(s, cards, favicon: str, card_pages: bool) -> str:
+def render_set(s, cards, favicon: str, card_pages: bool,
+               prev=None, nxt=None) -> str:
     o = [head(f"{s['name']} — MTGcyCLAUDEpedia", favicon), "<div class=wrap>"]
     o.append(f"<div class=top><div class=clock>{CLOCK_SVG}</div>"
              f"<div class=brand><a href='index.html'>MTGcyCLAUDEpedia</a>"
              f"</div></div>")
     o.append("<div class=crumb><a href='index.html'>Extensions</a> "
              f"&rsaquo; {esc(s['name'])}</div>")
+    # navigation chronologique entre extensions
+    prev_html = (f"<a class=setnav href='set-{slug(prev['code'])}.html' "
+                 f"title=\"{esc(prev['name'])}\">"
+                 f"&lsaquo; {esc(prev['code'].upper())}</a>"
+                 if prev else "<span class='setnav off'>&lsaquo;</span>")
+    next_html = (f"<a class=setnav href='set-{slug(nxt['code'])}.html' "
+                 f"title=\"{esc(nxt['name'])}\">"
+                 f"{esc(nxt['code'].upper())} &rsaquo;</a>"
+                 if nxt else "<span class='setnav off'>&rsaquo;</span>")
+    o.append(f"<div class=setnavbar>{prev_html}"
+             f"<span class=setnavmid>ordre chronologique</span>"
+             f"{next_html}</div>")
     stype = (s["set_type"] or "—").replace("_", " ")
     o.append(
         f"<div class=sethdr>{set_icon(s['code'], 'bigicon')}<div>"
@@ -1727,9 +1762,12 @@ def _render_site(data_dir: Path, *, card_pages: bool, want_rulings: bool,
     fav = favicon_svg()
     (out / "style.css").write_text(css(), encoding="utf-8")
     (out / "index.html").write_text(render_index(sets, fav), encoding="utf-8")
-    for s in sets:
+    # sets est déjà trié par date ; prev/next = voisins chronologiques
+    for i, s in enumerate(sets):
+        prev = sets[i - 1] if i > 0 else None
+        nxt = sets[i + 1] if i < len(sets) - 1 else None
         (out / f"set-{slug(s['code'])}.html").write_text(
-            render_set(s, cards_by_set[s["code"]], fav, card_pages),
+            render_set(s, cards_by_set[s["code"]], fav, card_pages, prev, nxt),
             encoding="utf-8")
 
     n_card = 0

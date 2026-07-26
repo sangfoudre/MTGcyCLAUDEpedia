@@ -12,6 +12,10 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
   Scryfall) et « clair éditorial » en plus du thème doré actuel, via une
   option `--theme`. Les trois maquettes ont été validées ; seul le doré est
   implémenté.
+- **Web, fluidité des grosses pages** : pagination ou virtualisation des
+  vignettes pour les extensions de plusieurs centaines de cartes, si la
+  lenteur se confirme sur le corpus complet. Piste : ne rendre dans le DOM
+  que les cartes visibles (IntersectionObserver).
 - **Web, recherche transversale** : rechercher une *carte* (pas seulement une
   extension) depuis l'accueil, sur l'ensemble du corpus. La recherche par
   extension existe déjà ; reste la recherche de cartes, qui suppose un index
@@ -24,6 +28,25 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 - Rejouer les 26 requêtes de parité API non exécutées
 
 ---
+
+## [2.1.0] — 2026-07-26
+
+### Ajouté
+- **Navigation chronologique entre extensions.** Chaque page de set affiche
+  deux flèches « ‹ précédent » / « suivant › » vers les extensions voisines
+  par date de sortie. Aux extrémités, la flèche correspondante est grisée.
+- **Mémoire de session du tri.** L'accueil retient le tri choisi (et le texte
+  de recherche) le temps de l'onglet, via `sessionStorage`. Revenir à
+  l'accueil après avoir visité une extension ne réinitialise plus le tri à
+  « plus récentes d'abord ».
+
+### Note sur la fluidité
+Le tri mémorisé supprime le principal agacement au retour vers l'accueil.
+La lenteur résiduelle sur les grosses extensions vient du poids des pages
+(une page de 460 cartes fait ~225 Ko de HTML, une balise `<img>` par carte) :
+c'est inhérent au choix « site statique, une page par set ». Une pagination
+ou une virtualisation des vignettes est notée en TODO pour un futur palier,
+si le besoin se confirme sur le corpus complet.
 
 ## [2.0.1] — 2026-07-26
 
