@@ -41,7 +41,7 @@ from collections import defaultdict
 import concurrent.futures as cf
 from pathlib import Path
 
-VERSION = "2.3.0"
+VERSION = "2.4.0"
 UA = "MTGcyCLAUDEpedia/2.0"
 API = "https://api.scryfall.com"
 API_DELAY = 0.1
@@ -1215,7 +1215,7 @@ font-family:inherit}}
 .tools input::placeholder{{color:var(--inkfaint)}}
 .tools input:focus,.tools select:focus{{outline:none;border-color:var(--gold)}}
 .count{{font-size:12px;color:var(--golddim);margin-left:auto}}
-.cards{{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+.cards{{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
 gap:16px}}
 .card{{position:relative}}
 .card img{{width:100%;border-radius:11px;display:block;
@@ -1279,7 +1279,30 @@ cursor:pointer;display:flex;align-items:center;justify-content:center}}
 color:var(--inkdim);font-size:13px;pointer-events:none}}
 #vwx{{position:absolute;top:14px;right:18px;background:none;border:none;
 color:var(--inkdim);font-size:26px;cursor:pointer}}
-#vwx:hover{{color:var(--gold)}}"""
+#vwx:hover{{color:var(--gold)}}
+/* ---- panneau de survol (point D) ---- */
+#hp{{position:fixed;inset:0;display:none;align-items:center;
+justify-content:center;z-index:800;pointer-events:none;
+background:rgba(10,8,4,.55)}}
+#hp.on{{display:flex}}
+#hpcard{{display:flex;gap:20px;max-width:760px;max-height:88vh;
+background:var(--panel);border:1px solid var(--gold);border-radius:16px;
+padding:20px;box-shadow:0 12px 60px rgba(0,0,0,.7)}}
+#hpimg{{width:300px;border-radius:12px;flex-shrink:0;align-self:flex-start}}
+#hpinfo{{display:flex;flex-direction:column;min-width:0;overflow:hidden}}
+#hphead{{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}}
+#hpname{{font-family:Georgia,serif;font-size:22px;color:var(--ink)}}
+#hpmana .ms-cost{{font-size:15px}}
+#hptype{{font-size:13px;color:var(--inkdim);margin-bottom:12px}}
+#hporacle{{font-size:14px;line-height:1.6;color:var(--ink);
+white-space:pre-wrap;overflow-y:auto}}
+#hprule{{margin-top:12px;padding:10px 14px;background:var(--panel2);
+border-left:3px solid var(--gold);border-radius:0 8px 8px 0;font-size:12px;
+color:var(--inkdim);overflow-y:auto}}
+#hprule .hprdate{{color:var(--golddim);font-family:ui-monospace,monospace;
+font-size:11px;margin-bottom:4px}}
+@media(max-width:640px){{#hpcard{{flex-direction:column;max-width:92vw}}
+#hpimg{{width:180px;align-self:center}}}}"""
 
 
 # ---------------------------------------------------------- favicon SVG
@@ -1434,7 +1457,8 @@ def render_index(sets, favicon: str) -> str:
 
 
 def render_set(s, cards, favicon: str, card_pages: bool,
-               prev=None, nxt=None) -> str:
+               prev=None, nxt=None, rulings=None) -> str:
+    rulings = rulings or {}
     o = [head(f"{s['name']} — MTGcyCLAUDEpedia", favicon), "<div class=wrap>"]
     o.append(f"<div class=top><div class=clock>{CLOCK_SVG}</div>"
              f"<div class=brand><a href='index.html'>MTGcyCLAUDEpedia</a>"
@@ -1485,6 +1509,10 @@ def render_set(s, cards, favicon: str, card_pages: bool,
         cmc = (0 if c["cmc"] is None
                else int(c["cmc"]) if c["cmc"] == int(c["cmc"]) else c["cmc"])
         has_page = card_pages and not c["oid"].startswith("noid-")
+        # oracle + dernier ruling, embarqués pour le panneau de survol (point D).
+        # Seule option compatible file:// hors-ligne : tout dans la page.
+        rr = rulings.get(c["oid"]) or []
+        last_ruling = rr[0] if rr else None
         data.append({
             "src": img, "name": c["name"], "cn": c["cn"],
             "n": c["name"].lower(), "t": c["type"].lower(),
@@ -1492,22 +1520,33 @@ def render_set(s, cards, favicon: str, card_pages: bool,
             "cmc": cmc, "dot": RARITY_COLOR.get(c["rarity"], THEME["ink_faint"]),
             "href": (f"card-{slug(c['oid'])}.html#{c['set_code']}"
                      if has_page else ""),
+            "type": c["type"], "mana": c.get("mana", ""),
+            "oracle": c.get("oracle_text", ""),
+            "rule": ({"d": last_ruling["date"], "t": last_ruling["text"]}
+                     if last_ruling else None),
         })
     o.append("<div class=cards id=cards></div>")
     o.append("<div class=empty id=empty style=display:none>"
              "Aucune carte ne correspond au filtre.</div>")
     o.append(f"<div class=foot>{s['count']} cartes · MTGcyCLAUDEpedia</div>")
     o.append("</div>")
+    o.append(hover_panel_html())
     o.append(viewer_html())
+    prev_url = f"set-{slug(prev['code'])}.html" if prev else ""
+    next_url = f"set-{slug(nxt['code'])}.html" if nxt else ""
     o.append(f"<script>const VIEW={json.dumps(data, ensure_ascii=False)};"
-             f"</script>")
+             f"const SET_PREV={json.dumps(prev_url)};"
+             f"const SET_NEXT={json.dumps(next_url)};</script>")
     o.append(SET_JS)
     o.append(VIEWER_JS)
+    o.append(SET_NAV_JS)
+    o.append(HOVER_JS)
     o.append("</body></html>")
     return "".join(o)
 
 
-def render_card(group, rulings, favicon: str, origin_set=None) -> str:
+def render_card(group, rulings, favicon: str, origin_set=None,
+                neighbors=None) -> str:
     # BUG corrigé : afficher en premier l'impression du set d'où l'on vient,
     # pas la plus ancienne. Si on arrive de la page 5ED, le hero est la 5ED.
     ordered = group
@@ -1561,9 +1600,11 @@ def render_card(group, rulings, favicon: str, origin_set=None) -> str:
     o.append("</div>")
     o.append(viewer_html())
     o.append(f"<script>const VIEW={json.dumps(viewer_list, ensure_ascii=False)};"
+             f"const NEIGHBORS={json.dumps(neighbors or {}, ensure_ascii=False)};"
              f"</script>")
     o.append(CARD_HERO_JS)
     o.append(VIEWER_JS)
+    o.append(CARD_NAV_JS)
     o.append("</body></html>")
     return "".join(o)
 
@@ -1582,6 +1623,87 @@ CARD_HERO_JS = """<script>
 </script>"""
 
 
+CARD_NAV_JS = """<script>
+// Navigation clavier entre CARTES d'un meme set (point B). Sur une page de
+// carte ouverte avec #<set>, gauche/droite sautent a la page de carte de la
+// carte precedente/suivante DU MEME set, par numero de collection. La 1re
+// carte du set n'a pas de gauche, la derniere pas de droite. Ignore si le
+// viewer plein ecran est ouvert ou si le focus est dans un champ.
+(function(){
+  const h=location.hash.replace('#','').toLowerCase();
+  if(!h||typeof NEIGHBORS==='undefined'||!NEIGHBORS[h])return;
+  const nb=NEIGHBORS[h];
+  document.addEventListener('keydown',function(e){
+    const vw=document.getElementById('vw');
+    if(vw&&vw.classList.contains('on'))return;
+    const tag=(e.target.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='select'||tag==='textarea')return;
+    if(e.key==='ArrowLeft'&&nb.prev){location.href=nb.prev;}
+    else if(e.key==='ArrowRight'&&nb.next){location.href=nb.next;}
+  });
+})();
+</script>"""
+
+
+def hover_panel_html() -> str:
+    """Panneau de survol (point D) : image grande + oracle + dernier ruling,
+    centré, apparaît après un léger délai. Repli tactile : aucun (pas de
+    hover), le clic ouvre le viewer comme d'habitude."""
+    return ("<div id=hp><div id=hpcard>"
+            "<img id=hpimg src='' alt=''>"
+            "<div id=hpinfo><div id=hphead><span id=hpname></span>"
+            "<span id=hpmana></span></div>"
+            "<div id=hptype></div>"
+            "<div id=hporacle></div>"
+            "<div id=hprule></div></div></div></div>")
+
+
+HOVER_JS = """<script>
+// Panneau de survol riche (point D). Après ~200ms de survol d'une vignette,
+// affiche au centre l'image en grand + le texte oracle + le dernier ruling.
+// Les données viennent de la liste filtrée courante (même index que vwOpen).
+(function(){
+  const hp=document.getElementById('hp');
+  const im=document.getElementById('hpimg');
+  const nm=document.getElementById('hpname');
+  const mn=document.getElementById('hpmana');
+  const ty=document.getElementById('hptype');
+  const orc=document.getElementById('hporacle');
+  const rl=document.getElementById('hprule');
+  let timer=null;
+  function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
+  function manaHTML(cost){
+    if(!cost)return '';
+    const syms=(cost.match(/\\{([^}]+)\\}/g)||[]).map(s=>{
+      const k=s.slice(1,-1).toLowerCase().replace(/\\//g,'');
+      return '<i class="ms ms-'+k+' ms-cost"></i>';
+    });
+    return syms.join('');
+  }
+  window.hovIn=function(idx){
+    const list=(typeof filtered!=='undefined'?filtered:VIEW);
+    const c=list[idx];if(!c)return;
+    clearTimeout(timer);
+    timer=setTimeout(function(){
+      im.src=c.src;im.alt=c.name;
+      nm.textContent=c.name;
+      mn.innerHTML=manaHTML(c.mana);
+      ty.textContent=c.type||'';
+      orc.textContent=c.oracle||'';
+      orc.style.display=c.oracle?'':'none';
+      if(c.rule){
+        rl.innerHTML='<div class=hprdate>Dernier ruling — '+esc(c.rule.d)
+          +'</div>'+esc(c.rule.t);
+        rl.style.display='';
+      }else{rl.style.display='none';}
+      hp.classList.add('on');
+    },200);
+  };
+  window.hovOut=function(){clearTimeout(timer);hp.classList.remove('on');};
+})();
+</script>"""
+
+
 def viewer_html() -> str:
     return ("<div id=vw><button id=vwx onclick=vwClose()>&times;</button>"
             "<div id=vwcap></div><div id=vwstage>"
@@ -1596,6 +1718,23 @@ def viewer_html() -> str:
             "</div></div>")
 
 
+SET_NAV_JS = """<script>
+// Navigation clavier entre EXTENSIONS (point A). Viewer ferme uniquement :
+// gauche = extension precedente (chrono), droite = suivante. Ignore si le
+// focus est dans un champ, ou si le viewer plein ecran est ouvert.
+(function(){
+  document.addEventListener('keydown',function(e){
+    const vw=document.getElementById('vw');
+    if(vw&&vw.classList.contains('on'))return;
+    const tag=(e.target.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='select'||tag==='textarea')return;
+    if(e.key==='ArrowLeft'&&SET_PREV){location.href=SET_PREV;}
+    else if(e.key==='ArrowRight'&&SET_NEXT){location.href=SET_NEXT;}
+  });
+})();
+</script>"""
+
+
 SET_JS = """<script>
 // ---- Grille virtualisée ----
 // Seules les cartes visibles à l'écran existent dans le DOM. On calcule quelles
@@ -1608,7 +1747,7 @@ const rarEl=document.getElementById('rar');
 const sortEl=document.getElementById('sort');
 
 let filtered=VIEW.slice();     // données après filtre/tri
-let colW=196, rowH=306, cols=1, pad=16;   // géométrie, recalculée au layout
+let colW=256, rowH=390, cols=1, pad=16;   // géométrie (240px+cap), recalculée au layout
 const OVER=3;                  // lignes de marge au-dessus/dessous
 
 function measure(){
@@ -1640,7 +1779,8 @@ function cardHTML(c,idx){
     +'<span class=dot style="background:'+c.dot+'"></span>'
     +escapeHtml(c.name)+'</span><span class=cn>'+escapeHtml(c.cn)+'</span></div>';
   const img='<img loading=lazy src="'+c.src+'" alt="'+escapeHtml(c.name)
-    +'" onclick="vwOpen('+idx+')">';
+    +'" onclick="vwOpen('+idx+')" onmouseenter="hovIn('+idx+')" '
+    +'onmouseleave="hovOut()">';
   const inner=c.href?('<a href="'+c.href+'">'+img+'</a>'):img;
   return '<div class=card>'+inner+cap+'</div>';
 }
@@ -1861,16 +2001,43 @@ def _render_site(data_dir: Path, *, card_pages: bool, want_rulings: bool,
         prev = sets[i - 1] if i > 0 else None
         nxt = sets[i + 1] if i < len(sets) - 1 else None
         (out / f"set-{slug(s['code'])}.html").write_text(
-            render_set(s, cards_by_set[s["code"]], fav, card_pages, prev, nxt),
+            render_set(s, cards_by_set[s["code"]], fav, card_pages, prev, nxt,
+                       rulings),
             encoding="utf-8")
+
+    # Voisinage clavier : pour chaque set, la liste ordonnée (num carte) des
+    # oracle_id de ses cartes ayant une page. Permet, sur une page de carte
+    # ouverte avec #<set>, de sauter à la carte précédente/suivante DU MÊME
+    # set (points A/B du plan). On indexe par set -> [oid, oid, ...].
+    set_order: dict[str, list[str]] = {}
+    if card_pages:
+        for code, cds in cards_by_set.items():
+            seq = [c["oid"] for c in cds if not c["oid"].startswith("noid-")]
+            set_order[code] = seq
 
     n_card = 0
     if card_pages:
         for oid, group in by_oracle.items():
             if oid.startswith("noid-"):
                 continue
+            # voisines par set : {set: {"prev": slug|"", "next": slug|""}}
+            neighbors = {}
+            for c in group:
+                code = c["set_code"]
+                seq = set_order.get(code, [])
+                try:
+                    idx = seq.index(oid)
+                except ValueError:
+                    continue
+                prev_oid = seq[idx - 1] if idx > 0 else ""
+                next_oid = seq[idx + 1] if idx < len(seq) - 1 else ""
+                neighbors[code] = {
+                    "prev": f"card-{slug(prev_oid)}.html#{code}" if prev_oid else "",
+                    "next": f"card-{slug(next_oid)}.html#{code}" if next_oid else "",
+                }
             (out / f"card-{slug(oid)}.html").write_text(
-                render_card(group, rulings, fav), encoding="utf-8")
+                render_card(group, rulings, fav, neighbors=neighbors),
+                encoding="utf-8")
             n_card += 1
         log.info(f"{n_card} page(s) de carte")
 

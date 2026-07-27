@@ -170,7 +170,9 @@ def test_set_page_is_virtualized(tmp_path):
     sets, cbs, _, _ = web.build_model(tmp_path, want_rulings=False)
     html = web.render_set(sets[0], cbs["tst"], "fav", False)
     # au plus 2 <img> statiques (le viewer) pour 50 cartes
-    assert html.count("<img") <= 2, "les vignettes doivent être virtualisées"
+    # au plus 3 <img> statiques : le viewer (1) + le panneau de survol (1) +
+    # marge. Les 50 vignettes ne doivent PAS être en dur (virtualisation).
+    assert html.count("<img") <= 3, "les vignettes doivent être virtualisées"
     # les données doivent être présentes en JSON
     assert '"cn"' in html and '"src"' in html
     assert html.count('"name"') >= 50
@@ -206,3 +208,54 @@ def test_clean_site_refuses_wrong_dir(tmp_path):
     with pytest.raises(SystemExit):
         web.clean_site_dir(d)
     assert (d / "keep.txt").exists()
+
+
+def test_card_page_has_set_neighbors(tmp_path):
+    """Point B : une page de carte porte les voisines par set (prev/next)
+    dans l'ordre du numéro de collection, contexte de set conservé."""
+    meta = tmp_path / "metadata"; meta.mkdir()
+    import gzip as _gz, json as _j
+    # 3 cartes distinctes dans le même set, numéros 1/2/3
+    cards = [{"set": "tst", "set_name": "T", "released_at": "2000-01-01",
+              "collector_number": str(i), "name": f"C{i}", "oracle_id": f"o-{i}",
+              "layout": "normal", "rarity": "common", "type_line": "Creature",
+              "oracle_text": "x"} for i in (1, 2, 3)]
+    with _gz.open(meta / "default_cards.jsonl.gz", "wt") as f:
+        for c in cards:
+            f.write(_j.dumps(c) + "\n")
+    d = tmp_path / "sets" / "tst"; d.mkdir(parents=True)
+    for i in (1, 2, 3):
+        (d / f"tst-{i}.jpg").write_bytes(b"\xff\xd8\xff\xe0stub")
+
+    sets, cbs, by_oracle, _ = web.build_model(tmp_path, want_rulings=False)
+    # voisines de la carte du milieu (o-2) dans le set tst
+    seq = [c["oid"] for c in cbs["tst"]]
+    assert seq == ["o-1", "o-2", "o-3"]
+    neighbors = {"tst": {
+        "prev": f"card-{web.slug('o-1')}.html#tst",
+        "next": f"card-{web.slug('o-3')}.html#tst"}}
+    html = web.render_card(by_oracle["o-2"], {}, "fav", neighbors=neighbors)
+    assert "o-1" in html and "o-3" in html
+    assert "#tst" in html
+
+
+def test_hover_data_embedded_in_set_page(tmp_path):
+    """Point D : oracle et dernier ruling sont embarqués dans la page de set
+    (seule option file:// hors-ligne pour le panneau de survol)."""
+    meta = tmp_path / "metadata"; meta.mkdir()
+    import gzip as _gz, json as _j
+    with _gz.open(meta / "default_cards.jsonl.gz", "wt") as f:
+        f.write(_j.dumps({
+            "set": "tst", "set_name": "T", "released_at": "2000-01-01",
+            "collector_number": "1", "name": "Card", "oracle_id": "o-1",
+            "layout": "normal", "rarity": "common", "type_line": "Creature",
+            "oracle_text": "Vole, protection contre le rouge"}) + "\n")
+    d = tmp_path / "sets" / "tst"; d.mkdir(parents=True)
+    (d / "tst-1.jpg").write_bytes(b"\xff\xd8\xff\xe0stub")
+
+    rulings = {"o-1": [{"date": "2020-01-01", "text": "Une clarification."}]}
+    sets, cbs, _, _ = web.build_model(tmp_path, want_rulings=False)
+    html = web.render_set(sets[0], cbs["tst"], "fav", True, rulings=rulings)
+    assert "protection contre le rouge" in html      # oracle embarqué
+    assert "Une clarification" in html               # ruling embarqué
+    assert "id=hp" in html                            # panneau présent

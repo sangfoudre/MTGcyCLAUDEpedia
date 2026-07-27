@@ -25,6 +25,41 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 
 ---
 
+## [2.4.0] — 2026-07-26
+
+### Ajouté
+- **Navigation clavier entre extensions** (pages de set) : ←/→ vont à
+  l'extension précédente/suivante dans l'ordre chronologique, comme les
+  flèches ‹ ›. Sans effet aux extrémités. Ignoré quand le focus est dans un
+  champ ou que le viewer plein écran est ouvert.
+- **Navigation clavier entre cartes d'un même set** (pages de carte) : sur
+  une page ouverte avec un contexte de set (`#tsoc`), ←/→ sautent à la page
+  de carte de la carte précédente/suivante **du même set**, par numéro de
+  collection, en conservant le contexte. La première carte du set n'a pas de
+  gauche, la dernière pas de droite. Chaque page de carte embarque ses
+  voisines par set d'origine.
+- **Panneau de survol riche** (« genoux d'abeille »). Au survol d'une
+  vignette dans une page de set, après ~200 ms, un panneau centré affiche
+  l'image en grand, le texte oracle et le dernier ruling daté. Repli
+  tactile : pas de survol sur mobile, le clic ouvre le viewer comme avant.
+  Les données oracle+ruling sont embarquées dans la page (seule option
+  compatible `file://` hors-ligne) : une page de set passe d'environ 120 à
+  ~240 Ko.
+
+### Modifié
+- **Vignettes agrandies** dans les pages de set : 240 px de large (contre
+  180), pour lire le texte des cartes anciennes. Environ 4 cartes par ligne
+  sur un écran classique. La virtualisation recalcule sa géométrie
+  automatiquement.
+
+### TODO (noté, à réévaluer après usage)
+- Position du panneau de survol : actuellement centré (masque la grille
+  pendant le survol). Une position latérale (collée à droite, grille
+  visible) serait peut-être plus confortable façon « inspecteur » — à
+  trancher après usage réel.
+- Raccourcis clavier pour changer d'extension depuis la grille sans ouvrir
+  de carte (type `[` / `]`), si le besoin se confirme.
+
 ## [2.3.0] — 2026-07-26
 
 ### Ajouté
