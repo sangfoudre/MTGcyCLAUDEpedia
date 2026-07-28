@@ -259,3 +259,75 @@ def test_hover_data_embedded_in_set_page(tmp_path):
     assert "protection contre le rouge" in html      # oracle embarqué
     assert "Une clarification" in html               # ruling embarqué
     assert "id=hp" in html                            # panneau présent
+
+
+def _dfc_datadir(tmp_path):
+    """Fabrique un data-dir avec une carte DFC (transform) à deux faces."""
+    import gzip as _gz, json as _j
+    meta = tmp_path / "metadata"; meta.mkdir()
+    card = {
+        "set": "isd", "set_name": "Innistrad", "released_at": "2011-09-30",
+        "collector_number": "51", "name": "Delver of Secrets // Aberration",
+        "oracle_id": "o-delver", "layout": "transform", "rarity": "common",
+        "card_faces": [
+            {"name": "Delver of Secrets", "type_line": "Creature — Human Wizard",
+             "mana_cost": "{U}", "oracle_text": "At the beginning of your upkeep…",
+             "image_uris": {"normal": "x"}},
+            {"name": "Insectile Aberration", "type_line": "Creature — Insect",
+             "mana_cost": "", "oracle_text": "Flying.", "image_uris": {"normal": "y"}},
+        ]}
+    with _gz.open(meta / "default_cards.jsonl.gz", "wt") as f:
+        f.write(_j.dumps(card) + "\n")
+    d = tmp_path / "sets" / "isd"; d.mkdir(parents=True)
+    (d / "isd-51-a.jpg").write_bytes(b"\xff\xd8\xff\xe0front")
+    (d / "isd-51-b.jpg").write_bytes(b"\xff\xd8\xff\xe0back")
+    return tmp_path
+
+
+def test_dfc_faces_extracted(tmp_path):
+    """build_model extrait les deux faces avec leur oracle propre."""
+    dd = _dfc_datadir(tmp_path)
+    sets, cbs, by_oracle, _ = web.build_model(dd, want_rulings=False)
+    card = cbs["isd"][0]
+    assert card["faces"], "une DFC doit porter ses deux faces"
+    assert len(card["faces"]) == 2
+    assert card["faces"][0]["name"] == "Delver of Secrets"
+    assert card["faces"][1]["name"] == "Insectile Aberration"
+    # oracles distincts
+    assert card["faces"][0]["oracle"] != card["faces"][1]["oracle"]
+    # images distinctes recto/verso
+    assert card["faces"][0]["img"].endswith("-a.jpg")
+    assert card["faces"][1]["img"].endswith("-b.jpg")
+
+
+def test_dfc_hover_and_flip_present(tmp_path):
+    """La page de set embarque les deux faces ; la page de carte a le flip."""
+    dd = _dfc_datadir(tmp_path)
+    sets, cbs, by_oracle, _ = web.build_model(dd, want_rulings=False)
+    set_html = web.render_set(sets[0], cbs["isd"], "fav", True)
+    # les deux faces dans le JSON de la page de set (survol empilé)
+    assert "Insectile Aberration" in set_html
+    assert '"faces"' in set_html
+    # badge flip présent dans le template de grille
+    assert "flipbadge" in set_html
+    card_html = web.render_card(by_oracle["o-delver"], {}, "fav")
+    assert "HERO_FACES" in card_html and "Insectile Aberration" in card_html
+    assert "cardFlip" in card_html and "heroflip" in card_html
+
+
+def test_normal_card_has_no_faces(tmp_path):
+    """Une carte simple n'a pas de faces (pas de flip parasite)."""
+    import gzip as _gz, json as _j
+    meta = tmp_path / "metadata"; meta.mkdir()
+    with _gz.open(meta / "default_cards.jsonl.gz", "wt") as f:
+        f.write(_j.dumps({
+            "set": "tst", "set_name": "T", "released_at": "2000-01-01",
+            "collector_number": "1", "name": "Plain", "oracle_id": "o-1",
+            "layout": "normal", "rarity": "common", "type_line": "Creature",
+            "oracle_text": "x"}) + "\n")
+    d = tmp_path / "sets" / "tst"; d.mkdir(parents=True)
+    (d / "tst-1.jpg").write_bytes(b"\xff\xd8\xff\xe0stub")
+    sets, cbs, by_oracle, _ = web.build_model(tmp_path, want_rulings=False)
+    assert cbs["tst"][0]["faces"] is None
+    card_html = web.render_card(by_oracle["o-1"], {}, "fav")
+    assert "HERO_FACES=null" in card_html

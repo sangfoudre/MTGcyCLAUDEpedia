@@ -25,6 +25,36 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 
 ---
 
+## [2.5.0] — 2026-07-28
+
+### Ajouté
+- **Cartes recto-verso (DFC) affichées des deux côtés.** Les images des deux
+  faces étaient téléchargées mais seul le recto s'affichait. `build_model`
+  extrait désormais les deux faces complètes (nom, type, coût, oracle, image)
+  depuis `card_faces`, pour tous les types recto-verso (`transform`,
+  `modal_dfc`, `reversible_card`, `double_faced_token`, `art_series`). Le
+  retournement fonctionne à quatre endroits :
+  - **grille de set** : un badge ↺ sur les cartes recto-verso retourne la
+    vignette (l'état de face est stocké dans les données, pas le DOM, pour
+    survivre au défilement de la grille virtualisée) ;
+  - **viewer plein écran** : touche `f` et bouton, bascule l'image ;
+  - **page de carte** : bouton « Retourner » qui change image, nom, type et
+    oracle — chaque face a son texte propre ;
+  - **panneau de survol** : les deux faces sont empilées, chacune avec son
+    oracle.
+- **Survol sur « toutes les impressions »** (pages de carte) : survoler une
+  vignette d'impression affiche l'image en grand avec son set et son numéro
+  (version simple ; l'oracle est déjà affiché en haut de la page).
+
+### Modifié
+- **Panneau de survol agrandi et resserré.** Image passée de 300 à 450 px,
+  numérotation « 003/253 » ajoutée, colonne de texte rétrécie (le texte passe
+  à la ligne plus tôt, lecture plus confortable).
+
+### TODO (inchangé)
+- Position du panneau de survol : centré, à réévaluer (latéral « inspecteur »).
+- Raccourcis clavier pour changer d'extension depuis la grille.
+
 ## [2.4.0] — 2026-07-26
 
 ### Ajouté

@@ -41,7 +41,7 @@ from collections import defaultdict
 import concurrent.futures as cf
 from pathlib import Path
 
-VERSION = "2.4.0"
+VERSION = "2.5.0"
 UA = "MTGcyCLAUDEpedia/2.0"
 API = "https://api.scryfall.com"
 API_DELAY = 0.1
@@ -1024,13 +1024,30 @@ def build_model(data_dir: Path, want_rulings: bool = True):
             if back:
                 claimed[code].add(back)
             oid = c.get("oracle_id") or f"noid-{code}-{cn}"
+            # DFC : extraire les deux faces complètes (nom, type, mana, oracle,
+            # image). Le champ `back` (nom de fichier) est conservé pour compat ;
+            # `faces` porte les données riches, base de tous les affichages.
+            faces = None
+            layout = c.get("layout") or ""
+            if layout in DFC_LAYOUTS and c.get("card_faces") and back:
+                cf = c["card_faces"]
+                faces = []
+                for fi, fa in enumerate(cf[:2]):
+                    faces.append({
+                        "name": fa.get("name") or "?",
+                        "type": fa.get("type_line") or "",
+                        "mana": fa.get("mana_cost") or "",
+                        "oracle": fa.get("oracle_text") or "",
+                        "img": img if fi == 0 else back,
+                    })
             entry = {
                 "oid": oid, "cn": cn, "name": c.get("name") or "?",
                 "rarity": c.get("rarity") or "", "artist": c.get("artist") or "",
                 "type": c.get("type_line") or "", "mana": c.get("mana_cost") or "",
                 "cmc": c.get("cmc"), "colors": "".join(c.get("colors") or []),
                 "oracle_text": c.get("oracle_text") or "",
-                "set_code": code, "img": img, "back": back,
+                "set_code": code, "img": img, "back": back, "faces": faces,
+                "layout": layout,
                 "released_at": c.get("released_at") or "",
             }
             cards_by_set[code].append(entry)
@@ -1049,7 +1066,8 @@ def build_model(data_dir: Path, want_rulings: bool = True):
             entry = {"oid": oid, "cn": cn, "name": cn, "rarity": "",
                      "artist": "", "type": "", "mana": "", "cmc": None,
                      "colors": "", "oracle_text": "", "set_code": code,
-                     "img": fn, "back": None, "released_at": ""}
+                     "img": fn, "back": None, "faces": None, "layout": "",
+                     "released_at": ""}
             cards_by_set[code].append(entry)
             by_oracle[oid].append(entry)
 
@@ -1222,6 +1240,12 @@ gap:16px}}
 background:var(--panel);border:1px solid var(--bd);aspect-ratio:488/680;
 object-fit:cover;cursor:pointer}}
 .card img:hover{{border-color:var(--gold)}}
+.card{{position:relative}}
+.flipbadge{{position:absolute;top:6px;right:6px;width:28px;height:28px;
+border-radius:50%;background:rgba(20,16,10,.85);border:1px solid var(--gold);
+color:var(--gold);font-size:15px;cursor:pointer;display:flex;
+align-items:center;justify-content:center;padding:0;line-height:1;z-index:2}}
+.flipbadge:hover{{background:var(--gold);color:var(--bg)}}
 .card .cap{{margin-top:6px;font-size:12px;color:var(--inkdim);
 display:flex;justify-content:space-between;gap:6px}}
 .card .cap .nm{{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
@@ -1237,6 +1261,11 @@ align-items:start}}
 @media(max-width:720px){{.cardtop{{grid-template-columns:1fr}}}}
 .cardtop img.hero{{width:100%;border-radius:16px;border:1px solid var(--bd);
 cursor:pointer}}
+.herowrap{{position:relative;display:flex;flex-direction:column;gap:10px}}
+#heroflip{{background:var(--panel);border:1px solid var(--gold);
+color:var(--gold);border-radius:8px;padding:8px 14px;font-size:14px;
+cursor:pointer;font-family:inherit}}
+#heroflip:hover{{background:var(--gold);color:var(--bg)}}
 .cardinfo h1{{font-family:Georgia,serif;font-size:30px;margin:0 0 4px;
 color:var(--ink);font-weight:500}}
 .cardinfo .tl{{font-size:14px;color:var(--inkdim);margin-bottom:14px}}
@@ -1280,29 +1309,36 @@ color:var(--inkdim);font-size:13px;pointer-events:none}}
 #vwx{{position:absolute;top:14px;right:18px;background:none;border:none;
 color:var(--inkdim);font-size:26px;cursor:pointer}}
 #vwx:hover{{color:var(--gold)}}
-/* ---- panneau de survol (point D) ---- */
+/* ---- panneau de survol (points 1 & 3) ---- */
 #hp{{position:fixed;inset:0;display:none;align-items:center;
 justify-content:center;z-index:800;pointer-events:none;
 background:rgba(10,8,4,.55)}}
 #hp.on{{display:flex}}
-#hpcard{{display:flex;gap:20px;max-width:760px;max-height:88vh;
-background:var(--panel);border:1px solid var(--gold);border-radius:16px;
-padding:20px;box-shadow:0 12px 60px rgba(0,0,0,.7)}}
-#hpimg{{width:300px;border-radius:12px;flex-shrink:0;align-self:flex-start}}
-#hpinfo{{display:flex;flex-direction:column;min-width:0;overflow:hidden}}
-#hphead{{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}}
-#hpname{{font-family:Georgia,serif;font-size:22px;color:var(--ink)}}
-#hpmana .ms-cost{{font-size:15px}}
-#hptype{{font-size:13px;color:var(--inkdim);margin-bottom:12px}}
-#hporacle{{font-size:14px;line-height:1.6;color:var(--ink);
-white-space:pre-wrap;overflow-y:auto}}
-#hprule{{margin-top:12px;padding:10px 14px;background:var(--panel2);
+#hpcard{{position:relative;display:flex;flex-direction:column;gap:18px;
+max-width:720px;max-height:92vh;overflow-y:auto;background:var(--panel);
+border:1px solid var(--gold);border-radius:16px;padding:22px;
+box-shadow:0 12px 60px rgba(0,0,0,.7)}}
+.hppos{{position:absolute;top:12px;right:16px;font-family:ui-monospace,monospace;
+font-size:12px;color:var(--golddim);letter-spacing:.05em}}
+.hpface{{display:flex;gap:18px}}
+.hpimg{{width:450px;border-radius:12px;flex-shrink:0;align-self:flex-start}}
+.hpinfo{{display:flex;flex-direction:column;min-width:0;max-width:220px}}
+.hphead{{display:flex;align-items:baseline;gap:8px;margin-bottom:4px;
+flex-wrap:wrap}}
+.hpname{{font-family:Georgia,serif;font-size:19px;color:var(--ink);
+line-height:1.2}}
+.hpmana .ms-cost{{font-size:14px}}
+.hptype{{font-size:12px;color:var(--inkdim);margin-bottom:10px}}
+.hporacle{{font-size:13px;line-height:1.6;color:var(--ink);
+white-space:pre-wrap}}
+.hprule{{padding:10px 14px;background:var(--panel2);
 border-left:3px solid var(--gold);border-radius:0 8px 8px 0;font-size:12px;
-color:var(--inkdim);overflow-y:auto}}
-#hprule .hprdate{{color:var(--golddim);font-family:ui-monospace,monospace;
+color:var(--inkdim)}}
+.hprule .hprdate{{color:var(--golddim);font-family:ui-monospace,monospace;
 font-size:11px;margin-bottom:4px}}
-@media(max-width:640px){{#hpcard{{flex-direction:column;max-width:92vw}}
-#hpimg{{width:180px;align-self:center}}}}"""
+@media(max-width:800px){{.hpface{{flex-direction:column}}
+.hpimg{{width:min(70vw,320px);align-self:center}}
+.hpinfo{{max-width:none}}}}"""
 
 
 # ---------------------------------------------------------- favicon SVG
@@ -1513,6 +1549,14 @@ def render_set(s, cards, favicon: str, card_pages: bool,
         # Seule option compatible file:// hors-ligne : tout dans la page.
         rr = rulings.get(c["oid"]) or []
         last_ruling = rr[0] if rr else None
+        # DFC : les deux faces (nom, type, oracle, image) pour le survol empilé
+        # et le flip. Chaque face porte son image sous sets/<code>/.
+        faces_js = None
+        if c.get("faces"):
+            faces_js = [{"name": f["name"], "type": f["type"],
+                         "mana": f["mana"], "oracle": f["oracle"],
+                         "src": f"sets/{c['set_code']}/{f['img']}"}
+                        for f in c["faces"]]
         data.append({
             "src": img, "name": c["name"], "cn": c["cn"],
             "n": c["name"].lower(), "t": c["type"].lower(),
@@ -1524,6 +1568,7 @@ def render_set(s, cards, favicon: str, card_pages: bool,
             "oracle": c.get("oracle_text", ""),
             "rule": ({"d": last_ruling["date"], "t": last_ruling["text"]}
                      if last_ruling else None),
+            "faces": faces_js,
         })
     o.append("<div class=cards id=cards></div>")
     o.append("<div class=empty id=empty style=display:none>"
@@ -1566,13 +1611,27 @@ def render_card(group, rulings, favicon: str, origin_set=None,
              f"{esc(first['name'])}</div>")
     hero = f"sets/{first['set_code']}/{first['img']}"
     o.append("<div class=cardtop>")
-    o.append(f"<img class=hero src='{hero}' alt=\"{esc(first['name'])}\" "
+    o.append("<div class=herowrap>")
+    o.append(f"<img class=hero id=hero src='{hero}' alt=\"{esc(first['name'])}\" "
              f"onclick='vwOpen(0)'>")
-    o.append("<div class=cardinfo>")
-    o.append(f"<h1>{esc(first['name'])}{mana_html(first['mana'])}</h1>")
-    o.append(f"<div class=tl>{esc(first['type'])}</div>")
-    if first["oracle_text"]:
-        o.append(f"<div class=oracle>{esc(first['oracle_text'])}</div>")
+    if first.get("faces"):
+        o.append("<button id=heroflip onclick='cardFlip()'>"
+                 "&#8646; Retourner</button>")
+    o.append("</div>")
+    o.append("<div class=cardinfo id=cardinfo>")
+    if first.get("faces"):
+        # DFC : le JS remplit cardinfo selon la face courante. On pré-remplit
+        # avec la face 0 pour l'affichage sans JS et le SEO.
+        fa = first["faces"][0]
+        o.append(f"<h1 id=cname>{esc(fa['name'])}"
+                 f"<span id=cmana>{mana_html(fa['mana'])}</span></h1>")
+        o.append(f"<div class=tl id=ctype>{esc(fa['type'])}</div>")
+        o.append(f"<div class=oracle id=coracle>{esc(fa['oracle'])}</div>")
+    else:
+        o.append(f"<h1>{esc(first['name'])}{mana_html(first['mana'])}</h1>")
+        o.append(f"<div class=tl>{esc(first['type'])}</div>")
+        if first["oracle_text"]:
+            o.append(f"<div class=oracle>{esc(first['oracle_text'])}</div>")
     rr = rulings.get(first["oid"])
     if rr:
         r = rr[0]
@@ -1585,12 +1644,26 @@ def render_card(group, rulings, favicon: str, origin_set=None,
     viewer_list = []
     for i, c in enumerate(group):
         img = f"sets/{c['set_code']}/{c['img']}"
-        viewer_list.append({"src": img, "name": c["name"], "set": c["set_code"],
-                            "cn": f"{c['set_code'].upper()} {c['cn']}"})
+        # Point 2 (option simple) : le survol montre l'image + set + numéro,
+        # sans oracle (déjà affiché en haut de la page). On réutilise hovIn :
+        # 'type' porte "SET · numéro", pas d'oracle ni de rule.
+        faces_js = None
+        if c.get("faces"):
+            faces_js = [{"name": f["name"], "type": f["type"], "mana": f["mana"],
+                         "oracle": f["oracle"],
+                         "src": f"sets/{c['set_code']}/{f['img']}"}
+                        for f in c["faces"]]
+        viewer_list.append({
+            "src": img, "name": c["name"], "set": c["set_code"],
+            "cn": f"{c['set_code'].upper()} {c['cn']}",
+            "type": f"{c['set_code'].upper()} · {c['cn']}",
+            "mana": "", "oracle": "", "rule": None, "faces": faces_js,
+        })
         o.append(
             f"<div class=print><img loading=lazy src='{img}' "
             f"alt=\"{esc(c['set_code'])} {esc(c['cn'])}\" "
-            f"onclick='vwOpen({i})'>"
+            f"onclick='vwOpen({i})' onmouseenter='hovIn({i})' "
+            f"onmouseleave='hovOut()'>"
             f"<div class=pl>{set_icon(c['set_code'], '')}"
             f"<a href='set-{slug(c['set_code'])}.html'>"
             f"{esc(c['set_code'].upper())}</a> · {esc(c['cn'])}</div></div>")
@@ -1598,13 +1671,23 @@ def render_card(group, rulings, favicon: str, origin_set=None,
     o.append(f"<div class=foot>{first['name']} · {len(group)} impression"
              f"{'s' if len(group) > 1 else ''} · MTGcyCLAUDEpedia</div>")
     o.append("</div>")
+    o.append(hover_panel_html())
     o.append(viewer_html())
+    hero_faces = None
+    if first.get("faces"):
+        hero_faces = [{"name": f["name"], "type": f["type"], "mana": f["mana"],
+                       "oracle": f["oracle"],
+                       "src": f"sets/{first['set_code']}/{f['img']}"}
+                      for f in first["faces"]]
     o.append(f"<script>const VIEW={json.dumps(viewer_list, ensure_ascii=False)};"
              f"const NEIGHBORS={json.dumps(neighbors or {}, ensure_ascii=False)};"
+             f"const HERO_FACES={json.dumps(hero_faces, ensure_ascii=False)};"
              f"</script>")
     o.append(CARD_HERO_JS)
+    o.append(CARD_FLIP_JS)
     o.append(VIEWER_JS)
     o.append(CARD_NAV_JS)
+    o.append(HOVER_JS)
     o.append("</body></html>")
     return "".join(o)
 
@@ -1619,6 +1702,34 @@ CARD_HERO_JS = """<script>
     const hero=document.querySelector('img.hero');
     if(hero){hero.src=VIEW[i].src;hero.setAttribute('onclick','vwOpen('+i+')');}
   }
+})();
+</script>"""
+
+
+CARD_FLIP_JS = """<script>
+// Flip du hero sur une page de carte DFC. Bascule image + nom + type + oracle
+// entre les deux faces. HERO_FACES est null si la carte n'est pas une DFC.
+(function(){
+  if(typeof HERO_FACES==='undefined'||!HERO_FACES)return;
+  let f=0;
+  function manaHTML(cost){
+    if(!cost)return '';
+    return (cost.match(/\\{([^}]+)\\}/g)||[]).map(s=>{
+      const k=s.slice(1,-1).toLowerCase().replace(/\\//g,'');
+      return '<i class="ms ms-'+k+' ms-cost"></i>';
+    }).join('');
+  }
+  function escHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
+  window.cardFlip=function(){
+    f=f?0:1;
+    const fa=HERO_FACES[f];
+    const hero=document.getElementById('hero');
+    if(hero)hero.src=fa.src;
+    const nm=document.getElementById('cname');
+    if(nm)nm.innerHTML=escHtml(fa.name)+'<span id=cmana>'+manaHTML(fa.mana)+'</span>';
+    const ty=document.getElementById('ctype');if(ty)ty.textContent=fa.type||'';
+    const or=document.getElementById('coracle');if(or)or.textContent=fa.oracle||'';
+  };
 })();
 </script>"""
 
@@ -1646,56 +1757,60 @@ CARD_NAV_JS = """<script>
 
 
 def hover_panel_html() -> str:
-    """Panneau de survol (point D) : image grande + oracle + dernier ruling,
-    centré, apparaît après un léger délai. Repli tactile : aucun (pas de
-    hover), le clic ouvre le viewer comme d'habitude."""
-    return ("<div id=hp><div id=hpcard>"
-            "<img id=hpimg src='' alt=''>"
-            "<div id=hpinfo><div id=hphead><span id=hpname></span>"
-            "<span id=hpmana></span></div>"
-            "<div id=hptype></div>"
-            "<div id=hporacle></div>"
-            "<div id=hprule></div></div></div></div>")
+    """Panneau de survol (points 1 & D). Conteneur rempli par le JS : image
+    en grand (450px), numérotation « n/total », texte oracle étroit. Pour les
+    DFC, les deux faces sont empilées, chacune avec son propre oracle. Repli
+    tactile : aucun survol, le clic ouvre le viewer."""
+    return "<div id=hp><div id=hpcard></div></div>"
 
 
 HOVER_JS = """<script>
-// Panneau de survol riche (point D). Après ~200ms de survol d'une vignette,
-// affiche au centre l'image en grand + le texte oracle + le dernier ruling.
-// Les données viennent de la liste filtrée courante (même index que vwOpen).
+// Panneau de survol (points 1 & 3). Après ~200 ms de survol d'une vignette,
+// affiche au centre : l'image en grand (450px), la numérotation n/total, le
+// texte oracle (colonne étroite), le dernier ruling. Pour une carte DFC, les
+// deux faces sont empilées, chacune avec son nom/type/oracle propre.
 (function(){
   const hp=document.getElementById('hp');
-  const im=document.getElementById('hpimg');
-  const nm=document.getElementById('hpname');
-  const mn=document.getElementById('hpmana');
-  const ty=document.getElementById('hptype');
-  const orc=document.getElementById('hporacle');
-  const rl=document.getElementById('hprule');
+  const card=document.getElementById('hpcard');
   let timer=null;
   function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
   function manaHTML(cost){
     if(!cost)return '';
-    const syms=(cost.match(/\\{([^}]+)\\}/g)||[]).map(s=>{
+    return (cost.match(/\\{([^}]+)\\}/g)||[]).map(s=>{
       const k=s.slice(1,-1).toLowerCase().replace(/\\//g,'');
       return '<i class="ms ms-'+k+' ms-cost"></i>';
-    });
-    return syms.join('');
+    }).join('');
+  }
+  // Un « côté » = une image + un bloc texte (nom, mana, type, oracle).
+  function faceBlock(src,name,mana,type,oracle){
+    return '<div class=hpface>'
+      +'<img class=hpimg src="'+src+'" alt="'+esc(name)+'">'
+      +'<div class=hpinfo><div class=hphead><span class=hpname>'+esc(name)
+      +'</span><span class=hpmana>'+manaHTML(mana)+'</span></div>'
+      +'<div class=hptype>'+esc(type||'')+'</div>'
+      +(oracle?'<div class=hporacle>'+esc(oracle)+'</div>':'')
+      +'</div></div>';
   }
   window.hovIn=function(idx){
     const list=(typeof filtered!=='undefined'?filtered:VIEW);
     const c=list[idx];if(!c)return;
     clearTimeout(timer);
     timer=setTimeout(function(){
-      im.src=c.src;im.alt=c.name;
-      nm.textContent=c.name;
-      mn.innerHTML=manaHTML(c.mana);
-      ty.textContent=c.type||'';
-      orc.textContent=c.oracle||'';
-      orc.style.display=c.oracle?'':'none';
+      let html='';
+      // numérotation n/total sur la liste courante (ex. 003/253)
+      const pos=String(idx+1).padStart(3,'0')+'/'+String(list.length).padStart(3,'0');
+      html+='<div class=hppos>'+pos+'</div>';
+      if(c.faces&&c.faces.length){
+        // DFC : les deux faces empilées, chacune son oracle
+        html+=c.faces.map(f=>faceBlock(f.src,f.name,f.mana,f.type,f.oracle)).join('');
+      }else{
+        html+=faceBlock(c.src,c.name,c.mana,c.type,c.oracle);
+      }
       if(c.rule){
-        rl.innerHTML='<div class=hprdate>Dernier ruling — '+esc(c.rule.d)
-          +'</div>'+esc(c.rule.t);
-        rl.style.display='';
-      }else{rl.style.display='none';}
+        html+='<div class=hprule><div class=hprdate>Dernier ruling — '
+          +esc(c.rule.d)+'</div>'+esc(c.rule.t)+'</div>';
+      }
+      card.innerHTML=html;
       hp.classList.add('on');
     },200);
   };
@@ -1713,6 +1828,8 @@ def viewer_html() -> str:
             "<button onclick=vwZoom(-1) title='Zoom -'>&minus;</button>"
             "<button onclick=vwZoom(1) title='Zoom +'>+</button>"
             "<button onclick=vwRot() title='Rotation (r)'>&#8635;</button>"
+            "<button id=vwflip onclick=vwFlip() title='Retourner (f)' "
+            "style='display:none'>&#8646;</button>"
             "<button onclick=vwReset() title='Réinitialiser'>&#9633;</button>"
             "<button onclick=vwNext() title='Suivant (→)'>&rsaquo;</button>"
             "</div></div>")
@@ -1778,11 +1895,25 @@ function cardHTML(c,idx){
   const cap='<div class=cap><span class=nm>'
     +'<span class=dot style="background:'+c.dot+'"></span>'
     +escapeHtml(c.name)+'</span><span class=cn>'+escapeHtml(c.cn)+'</span></div>';
-  const img='<img loading=lazy src="'+c.src+'" alt="'+escapeHtml(c.name)
+  // DFC : le badge ↺ retourne la vignette. L'état (_f) vit dans la donnée,
+  // pas le DOM — sinon il se perdrait au défilement (grille virtualisée).
+  const hasF=c.faces&&c.faces.length>1;
+  const face=hasF?c.faces[c._f?1:0]:null;
+  const src=face?face.src:c.src;
+  const alt=face?face.name:c.name;
+  const img='<img loading=lazy src="'+src+'" alt="'+escapeHtml(alt)
     +'" onclick="vwOpen('+idx+')" onmouseenter="hovIn('+idx+')" '
     +'onmouseleave="hovOut()">';
+  const badge=hasF?('<button class=flipbadge title="Retourner" '
+    +'onclick="event.stopPropagation();event.preventDefault();gridFlip('+idx+')">'
+    +'\\u21ba</button>'):'';
   const inner=c.href?('<a href="'+c.href+'">'+img+'</a>'):img;
-  return '<div class=card>'+inner+cap+'</div>';
+  return '<div class=card>'+inner+badge+cap+'</div>';
+}
+function gridFlip(idx){
+  const c=filtered[idx];if(!c||!c.faces)return;
+  c._f=!c._f;
+  render();   // re-rend la fenêtre visible avec la face à jour
 }
 function escapeHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
 
@@ -1833,14 +1964,25 @@ requestAnimationFrame(()=>{
 VIEWER_JS = """<script>
 // Viewer plein écran. Travaille sur une liste courante (vwList) : c'est VIEW
 // par défaut (pages carte), ou la liste filtrée (pages set, via vwOpen).
-let vi=0,vz=1,vr=0,vwList=(typeof VIEW!=='undefined'?VIEW:[]);
+let vi=0,vz=1,vr=0,vf=0,vwList=(typeof VIEW!=='undefined'?VIEW:[]);
 const vw=document.getElementById('vw'),vimg=document.getElementById('vwimg'),
       vcap=document.getElementById('vwcap');
 function vwApply(){vimg.style.transform=`scale(${vz}) rotate(${vr}deg)`;}
-function vwShow(){const v=vwList[vi];if(!v)return;vimg.src=v.src;vimg.alt=v.name;
-  vcap.textContent=v.name+'  ·  '+(v.cn||'')+'   ('+(vi+1)+'/'+vwList.length+')';
+function vwShow(){const v=vwList[vi];if(!v)return;
+  // DFC : afficher la face courante (vf). Sinon l'image simple.
+  const hasF=v.faces&&v.faces.length>1;
+  const face=hasF?v.faces[vf]:null;
+  vimg.src=face?face.src:v.src;
+  vimg.alt=(face?face.name:v.name);
+  const nm=face?face.name:v.name;
+  vcap.textContent=nm+'  ·  '+(v.cn||'')+'   ('+(vi+1)+'/'+vwList.length+')'
+    +(hasF?'   [f] '+(vf===0?'recto':'verso'):'');
+  const fb=document.getElementById('vwflip');
+  if(fb)fb.style.display=hasF?'':'none';
   vz=1;vr=0;vwApply();}
-function vwStart(i){vw.classList.add('on');vi=i;vwShow();}
+function vwStart(i){vw.classList.add('on');vi=i;vf=0;vwShow();}
+function vwFlip(){const v=vwList[vi];
+  if(v&&v.faces&&v.faces.length>1){vf=vf?0:1;vwShow();}}
 // vwOpen par défaut (pages carte) ; les pages de set le redéfinissent pour
 // pointer sur la liste filtrée.
 if(typeof window.vwOpen==='undefined'){
@@ -1850,8 +1992,8 @@ if(typeof window.vwOpen==='undefined'){
 window.vwStart=vwStart;
 Object.defineProperty(window,'__view',{set(v){vwList=v;},get(){return vwList;}});
 function vwClose(){vw.classList.remove('on');}
-function vwNext(){vi=(vi+1)%vwList.length;vwShow();}
-function vwPrev(){vi=(vi-1+vwList.length)%vwList.length;vwShow();}
+function vwNext(){vi=(vi+1)%vwList.length;vf=0;vwShow();}
+function vwPrev(){vi=(vi-1+vwList.length)%vwList.length;vf=0;vwShow();}
 function vwZoom(d){vz=Math.max(.3,Math.min(6,vz+d*.25));vwApply();}
 function vwRot(){vr=(vr+90)%360;vwApply();}
 function vwReset(){vz=1;vr=0;vwApply();}
@@ -1861,6 +2003,7 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='ArrowRight')vwNext();
   else if(e.key==='ArrowLeft')vwPrev();
   else if(e.key==='r'||e.key==='R')vwRot();
+  else if(e.key==='f'||e.key==='F')vwFlip();
   else if(e.key==='+'||e.key==='=')vwZoom(1);
   else if(e.key==='-')vwZoom(-1);
 });
