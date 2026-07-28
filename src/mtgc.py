@@ -41,7 +41,7 @@ from collections import defaultdict
 import concurrent.futures as cf
 from pathlib import Path
 
-VERSION = "2.5.0"
+VERSION = "2.6.0"
 UA = "MTGcyCLAUDEpedia/2.0"
 API = "https://api.scryfall.com"
 API_DELAY = 0.1
@@ -67,6 +67,10 @@ THEME = {
 RARITY_COLOR = {
     "common": "#d8d8d8", "uncommon": "#b8c6d4", "rare": "#e0bd5a",
     "mythic": "#e8842e", "special": "#c088e0", "bonus": "#c088e0",
+}
+RARITY_ABBR = {
+    "common": "C", "uncommon": "U", "rare": "R", "mythic": "M",
+    "special": "S", "bonus": "B",
 }
 DFC_LAYOUTS = {"transform", "modal_dfc", "reversible_card",
                "double_faced_token", "art_series"}
@@ -106,6 +110,24 @@ class Log:
 
 
 log = Log()
+
+
+def journal(data_dir: Path, lines: list[str]) -> None:
+    """Ajoute des lignes horodatées au journal de bord <data-dir>/mtgc.log.
+
+    Le fichier s'accumule (une trace par run), jamais écrasé. Chaque entrée
+    est préfixée de la date-heure ISO. Silencieux en cas d'échec d'écriture
+    (le journal ne doit jamais faire échouer un sync).
+    """
+    if not lines:
+        return
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
+    try:
+        with (data_dir / "mtgc.log").open("a", encoding="utf-8") as f:
+            for ln in lines:
+                f.write(f"{stamp}  {ln}\n")
+    except OSError:
+        pass
 
 
 # ------------------------------------------------------------- utilitaires
@@ -1266,6 +1288,11 @@ cursor:pointer}}
 color:var(--gold);border-radius:8px;padding:8px 14px;font-size:14px;
 cursor:pointer;font-family:inherit}}
 #heroflip:hover{{background:var(--gold);color:var(--bg)}}
+.cardmeta{{display:flex;align-items:center;gap:12px;margin-bottom:10px;
+font-family:ui-monospace,monospace;font-size:13px}}
+.cardmeta .cmrar{{font-weight:700;font-size:15px}}
+.cardmeta .cmnum{{color:var(--inkdim)}}
+.cardmeta .cmset{{color:var(--golddim);letter-spacing:.05em}}
 .cardinfo h1{{font-family:Georgia,serif;font-size:30px;margin:0 0 4px;
 color:var(--ink);font-weight:500}}
 .cardinfo .tl{{font-size:14px;color:var(--inkdim);margin-bottom:14px}}
@@ -1315,12 +1342,16 @@ justify-content:center;z-index:800;pointer-events:none;
 background:rgba(10,8,4,.55)}}
 #hp.on{{display:flex}}
 #hpcard{{position:relative;display:flex;flex-direction:column;gap:18px;
-max-width:720px;max-height:92vh;overflow-y:auto;background:var(--panel);
+max-width:min(94vw,760px);max-height:92vh;background:var(--panel);
 border:1px solid var(--gold);border-radius:16px;padding:22px;
 box-shadow:0 12px 60px rgba(0,0,0,.7)}}
 .hppos{{position:absolute;top:12px;right:16px;font-family:ui-monospace,monospace;
 font-size:12px;color:var(--golddim);letter-spacing:.05em}}
 .hpface{{display:flex;gap:18px}}
+.hpfaces{{display:flex;gap:22px;flex-wrap:nowrap}}
+.hpfaces .hpface{{flex-direction:column;gap:10px}}
+.hpfaces .hpimg{{width:300px}}
+.hpfaces .hpinfo{{max-width:300px}}
 .hpimg{{width:450px;border-radius:12px;flex-shrink:0;align-self:flex-start}}
 .hpinfo{{display:flex;flex-direction:column;min-width:0;max-width:220px}}
 .hphead{{display:flex;align-items:baseline;gap:8px;margin-bottom:4px;
@@ -1566,6 +1597,7 @@ def render_set(s, cards, favicon: str, card_pages: bool,
                      if has_page else ""),
             "type": c["type"], "mana": c.get("mana", ""),
             "oracle": c.get("oracle_text", ""),
+            "rar": RARITY_ABBR.get(c["rarity"], ""),
             "rule": ({"d": last_ruling["date"], "t": last_ruling["text"]}
                      if last_ruling else None),
             "faces": faces_js,
@@ -1581,6 +1613,7 @@ def render_set(s, cards, favicon: str, card_pages: bool,
     next_url = f"set-{slug(nxt['code'])}.html" if nxt else ""
     o.append(f"<script>const VIEW={json.dumps(data, ensure_ascii=False)};"
              f"const SET_PREV={json.dumps(prev_url)};"
+             f"const SET_TOTAL={len(data)};"
              f"const SET_NEXT={json.dumps(next_url)};</script>")
     o.append(SET_JS)
     o.append(VIEWER_JS)
@@ -1591,7 +1624,7 @@ def render_set(s, cards, favicon: str, card_pages: bool,
 
 
 def render_card(group, rulings, favicon: str, origin_set=None,
-                neighbors=None) -> str:
+                neighbors=None, set_totals=None) -> str:
     # BUG corrigé : afficher en premier l'impression du set d'où l'on vient,
     # pas la plus ancienne. Si on arrive de la page 5ED, le hero est la 5ED.
     ordered = group
@@ -1619,6 +1652,18 @@ def render_card(group, rulings, favicon: str, origin_set=None,
                  "&#8646; Retourner</button>")
     o.append("</div>")
     o.append("<div class=cardinfo id=cardinfo>")
+    # rareté (C/U/R/M) + numéro de collection sur le total du set d'origine
+    st = (set_totals or {}).get(first["set_code"], 0)
+    num = (first["cn"] or "").lstrip("0") or first["cn"]
+    num_txt = (f"{str(num).zfill(3)}/{str(st).zfill(3)}" if st
+               else str(num).zfill(3))
+    rar_ab = RARITY_ABBR.get(first["rarity"], "")
+    rar_col = RARITY_COLOR.get(first["rarity"], THEME["ink_faint"])
+    o.append(
+        f"<div class=cardmeta>"
+        f"<span class=cmrar style='color:{rar_col}'>{rar_ab}</span>"
+        f"<span class=cmnum>{esc(num_txt)}</span>"
+        f"<span class=cmset>{esc(first['set_code'].upper())}</span></div>")
     if first.get("faces"):
         # DFC : le JS remplit cardinfo selon la face courante. On pré-remplit
         # avec la face 0 pour l'affichage sans JS et le SEO.
@@ -1797,12 +1842,20 @@ HOVER_JS = """<script>
     clearTimeout(timer);
     timer=setTimeout(function(){
       let html='';
-      // numérotation n/total sur la liste courante (ex. 003/253)
-      const pos=String(idx+1).padStart(3,'0')+'/'+String(list.length).padStart(3,'0');
-      html+='<div class=hppos>'+pos+'</div>';
+      // numérotation : numéro de collection / total du set (ex. 003/254) +
+      // rareté abrégée (C/U/R/M). Sur une page de carte, SET_TOTAL est absent :
+      // on retombe sur la position dans la liste.
+      const total=(typeof SET_TOTAL!=='undefined'?SET_TOTAL:list.length);
+      const num=(c.cn||String(idx+1)).replace(/^0+/,'')||c.cn;
+      const posTxt=String(num).padStart(3,'0')+'/'+String(total).padStart(3,'0');
+      const rar=c.rar?' · '+c.rar:'';
+      html+='<div class=hppos>'+posTxt+rar+'</div>';
       if(c.faces&&c.faces.length){
-        // DFC : les deux faces empilées, chacune son oracle
-        html+=c.faces.map(f=>faceBlock(f.src,f.name,f.mana,f.type,f.oracle)).join('');
+        // DFC : les deux faces côte à côte (pas empilées), pour tenir en
+        // hauteur sans ascenseur.
+        html+='<div class=hpfaces>'
+          +c.faces.map(f=>faceBlock(f.src,f.name,f.mana,f.type,f.oracle)).join('')
+          +'</div>';
       }else{
         html+=faceBlock(c.src,c.name,c.mana,c.type,c.oracle);
       }
@@ -2179,7 +2232,9 @@ def _render_site(data_dir: Path, *, card_pages: bool, want_rulings: bool,
                     "next": f"card-{slug(next_oid)}.html#{code}" if next_oid else "",
                 }
             (out / f"card-{slug(oid)}.html").write_text(
-                render_card(group, rulings, fav, neighbors=neighbors),
+                render_card(group, rulings, fav, neighbors=neighbors,
+                            set_totals={code: len(cds)
+                                        for code, cds in cards_by_set.items()}),
                 encoding="utf-8")
             n_card += 1
         log.info(f"{n_card} page(s) de carte")
@@ -2199,6 +2254,11 @@ def cmd_sync(a) -> int:
     for d in (cfg.data_dir, cfg.images_dir, cfg.meta_dir):
         d.mkdir(parents=True, exist_ok=True)
     log.info(f"mtgc {VERSION} — sync vers {cfg.data_dir}")
+    jlog: list[str] = [f"=== sync (mtgc {VERSION}) ==="]
+
+    # sets déjà présents sur disque AVANT ce sync (pour détecter les nouveaux)
+    sets_before = {p.name.lower() for p in cfg.images_dir.iterdir()
+                   if p.is_dir()} if cfg.images_dir.is_dir() else set()
 
     # 1. images
     if not a.no_images:
@@ -2206,6 +2266,7 @@ def cmd_sync(a) -> int:
             bulk = fetch_bulk(a.bulk, cfg.meta_dir, force=a.force_bulk)
         except Exception as e:                            # noqa: BLE001
             log.err(f"bulk cartes indisponible : {e}")
+            journal(cfg.data_dir, jlog + [f"ERREUR bulk cartes : {e}"])
             return 1
         if not a.no_rulings:
             try:
@@ -2213,6 +2274,7 @@ def cmd_sync(a) -> int:
                 log.info("bulk des rulings récupéré")
             except Exception as e:                        # noqa: BLE001
                 log.warn(f"bulk des rulings indisponible : {e}")
+                jlog.append(f"AVERTISSEMENT rulings : {e}")
 
         conn = open_manifest(cfg.manifest)
         log.info("planification…")
@@ -2225,18 +2287,36 @@ def cmd_sync(a) -> int:
         if a.dry_run:
             log.ok("--dry-run : rien téléchargé")
             return 0
-        run_downloads(jobs, cfg, conn)
+        dl = run_downloads(jobs, cfg, conn)
+
+        # journal : sets nouveaux + cartes lues + images téléchargées + échecs
+        sets_after = {p.name.lower() for p in cfg.images_dir.iterdir()
+                      if p.is_dir()}
+        new_sets = sorted(sets_after - sets_before)
+        for code in new_sets:
+            n = len(list((cfg.images_dir / code).glob("*.jpg"))) + \
+                len(list((cfg.images_dir / code).glob("*.png")))
+            jlog.append(f"set ajouté : {code.upper()} ({n} images)")
+        jlog.append(f"cartes lues : {stats['cartes']}")
+        jlog.append(f"images téléchargées : {dl['téléchargées']}"
+                    f" (ignorées {dl['ignorées']}, échecs {dl['échecs']})")
+        if dl["échecs"]:
+            jlog.append(f"ATTENTION : {dl['échecs']} téléchargement(s) en échec")
     else:
         log.info("étape images ignorée (--no-images)")
+        jlog.append("étape images ignorée (--no-images)")
 
     # 2. web
     if not a.no_web:
         _render_site(cfg.data_dir, card_pages=not a.no_card_pages,
                      want_rulings=not a.no_rulings, offline=a.no_fonts,
                      sets_filter=cfg.sets, clean=not a.no_clean)
+        jlog.append("site régénéré")
     else:
         log.info("étape web ignorée (--no-web)")
+        jlog.append("étape web ignorée (--no-web)")
 
+    journal(cfg.data_dir, jlog)
     if a.open:
         import webbrowser
         webbrowser.open((cfg.data_dir / "site" / "index.html").as_uri())

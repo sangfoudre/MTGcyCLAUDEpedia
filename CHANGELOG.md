@@ -25,6 +25,25 @@ versionnage suivant [SemVer](https://semver.org/lang/fr/).
 
 ---
 
+## [2.6.0] — 2026-07-28
+
+### Ajouté
+- **Journal de bord horodaté.** Chaque `sync` ajoute au fichier
+  `<data-dir>/mtgc.log` (qui s'accumule, jamais écrasé) des lignes datées :
+  sets ajoutés (avec nombre d'images), cartes lues, images téléchargées
+  (avec ignorées et échecs), avertissements et erreurs. Un vrai journal de
+  ce qui s'est passé, run après run.
+- **Rareté et numéro de collection** dans les infos des pages de carte et du
+  panneau de survol : rareté abrégée **C/U/R/M** (colorée) et numéro au
+  format **003/254** (numéro de la carte sur le total du set d'origine).
+
+### Corrigé
+- **Panneau de survol des cartes recto-verso : deux faces côte à côte.**
+  Elles étaient empilées verticalement, ce qui débordait en hauteur et
+  faisait apparaître un ascenseur inatteignable (la souris restant sur la
+  grille). Les faces sont maintenant l'une à côté de l'autre : le panneau
+  tient en hauteur, plus d'ascenseur.
+
 ## [2.5.0] — 2026-07-28
 
 ### Ajouté

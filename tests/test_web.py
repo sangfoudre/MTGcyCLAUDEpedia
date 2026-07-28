@@ -331,3 +331,37 @@ def test_normal_card_has_no_faces(tmp_path):
     assert cbs["tst"][0]["faces"] is None
     card_html = web.render_card(by_oracle["o-1"], {}, "fav")
     assert "HERO_FACES=null" in card_html
+
+
+def test_card_page_shows_rarity_and_number(tmp_path):
+    """Point 3 : rareté (C/U/R/M) et numéro nnn/total sur la page de carte."""
+    import gzip as _gz, json as _j
+    meta = tmp_path / "metadata"; meta.mkdir()
+    cards = [{"set": "tst", "set_name": "T", "released_at": "2000-01-01",
+              "collector_number": str(i), "name": f"C{i}", "oracle_id": f"o-{i}",
+              "layout": "normal", "rarity": "rare" if i == 3 else "common",
+              "type_line": "Creature", "oracle_text": "x"} for i in range(1, 6)]
+    with _gz.open(meta / "default_cards.jsonl.gz", "wt") as f:
+        for c in cards:
+            f.write(_j.dumps(c) + "\n")
+    d = tmp_path / "sets" / "tst"; d.mkdir(parents=True)
+    for i in range(1, 6):
+        (d / f"tst-{i}.jpg").write_bytes(b"\xff\xd8\xff\xe0stub")
+    sets, cbs, by_oracle, _ = web.build_model(tmp_path, want_rulings=False)
+    totals = {"tst": 5}
+    html = web.render_card(by_oracle["o-3"], {}, "fav", set_totals=totals)
+    assert "003/005" in html          # numéro sur total du set
+    assert "cmrar" in html            # bloc rareté
+    assert ">R<" in html              # rare abrégée
+
+
+def test_journal_accumulates(tmp_path):
+    """Le journal s'accumule (append) avec horodatage."""
+    web.journal(tmp_path, ["set ajouté : ABC (10 images)"])
+    web.journal(tmp_path, ["cartes lues : 42"])
+    content = (tmp_path / "mtgc.log").read_text()
+    assert "set ajouté : ABC" in content
+    assert "cartes lues : 42" in content
+    # deux lignes horodatées distinctes
+    assert content.count("set ajouté") == 1
+    assert len([l for l in content.splitlines() if l.strip()]) == 2
